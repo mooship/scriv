@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"os"
 	"strconv"
 	"strings"
@@ -18,8 +19,8 @@ func cmdAdd(text string) error {
 	return nil
 }
 
-func cmdList() error {
-	notes, err := loadNotes()
+func cmdList(opts ListOptions) error {
+	notes, err := listNotes(opts)
 	if err != nil {
 		return err
 	}
@@ -28,7 +29,11 @@ func cmdList() error {
 		return nil
 	}
 	for _, n := range notes {
-		fmt.Printf("[%d] %s\n", n.ID, n.Text)
+		line := fmt.Sprintf("[%d] %s", n.ID, n.Text)
+		if len(n.Tags) > 0 {
+			line += " #" + strings.Join(n.Tags, " #")
+		}
+		fmt.Println(line)
 	}
 	fmt.Printf("%d notes.\n", len(notes))
 	return nil
@@ -47,6 +52,15 @@ func cmdView(idStr string) error {
 	t, err := time.Parse("2006-01-02T15:04:05Z", note.CreatedAt)
 	if err == nil {
 		fmt.Printf("    Created: %s\n", t.Format("2006-01-02"))
+	}
+	if note.UpdatedAt != "" {
+		u, err := time.Parse("2006-01-02T15:04:05Z", note.UpdatedAt)
+		if err == nil {
+			fmt.Printf("    Updated: %s\n", u.Format("2006-01-02"))
+		}
+	}
+	if len(note.Tags) > 0 {
+		fmt.Printf("    Tags: #%s\n", strings.Join(note.Tags, " #"))
 	}
 	return nil
 }
@@ -90,6 +104,45 @@ func cmdSearch(query string) error {
 		fmt.Printf("[%d] %s\n", n.ID, n.Text)
 	}
 	return nil
+}
+
+func cmdTag(idStr string, tags []string) error {
+	id, err := strconv.ParseUint(idStr, 10, 64)
+	if err != nil || id == 0 {
+		return fmt.Errorf("id must be a positive integer")
+	}
+	note, err := tagNote(id, tags)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Tagged [%d] %s: #%s\n", note.ID, note.Text, strings.Join(note.Tags, " #"))
+	return nil
+}
+
+func cmdUntag(idStr string, tag string) error {
+	id, err := strconv.ParseUint(idStr, 10, 64)
+	if err != nil || id == 0 {
+		return fmt.Errorf("id must be a positive integer")
+	}
+	note, err := untagNote(id, tag)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Removed tag #%s from [%d] %s\n", tag, note.ID, note.Text)
+	return nil
+}
+
+func readStdinText(r io.Reader) (string, error) {
+	scanner := bufio.NewScanner(r)
+	var lines []string
+	for scanner.Scan() {
+		lines = append(lines, scanner.Text())
+	}
+	text := strings.TrimSpace(strings.Join(lines, "\n"))
+	if text == "" {
+		return "", fmt.Errorf("no text provided via stdin")
+	}
+	return text, nil
 }
 
 func cmdClear(force bool) error {
