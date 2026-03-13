@@ -49,7 +49,7 @@ func loadNotes() ([]Note, error) {
 		return []Note{}, nil
 	}
 	if err != nil {
-		return nil, fmt.Errorf("cannot write to %s: %w", path, err)
+		return nil, fmt.Errorf("cannot read from %s: %w", path, err)
 	}
 	var notes []Note
 	if err := json.Unmarshal(data, &notes); err != nil {
@@ -131,6 +131,19 @@ func editNote(id uint64, text string) (Note, error) {
 		if n.ID == id {
 			notes[i].Text = text
 			return notes[i], saveNotes(notes)
+		}
+	}
+	return Note{}, fmt.Errorf("no note with id %d", id)
+}
+
+func getNote(id uint64) (Note, error) {
+	notes, err := loadNotes()
+	if err != nil {
+		return Note{}, err
+	}
+	for _, n := range notes {
+		if n.ID == id {
+			return n, nil
 		}
 	}
 	return Note{}, fmt.Errorf("no note with id %d", id)

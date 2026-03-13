@@ -267,6 +267,51 @@ func TestClearNotes_EmptiesFile(t *testing.T) {
 	}
 }
 
+func TestGetNote_ReturnsCorrectNote(t *testing.T) {
+	defer setupTempFile(t)()
+
+	addNote("alpha")
+	addNote("beta")
+
+	note, err := getNote(2)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if note.ID != 2 || note.Text != "beta" {
+		t.Errorf("unexpected note: %+v", note)
+	}
+}
+
+func TestGetNote_NotFoundReturnsError(t *testing.T) {
+	defer setupTempFile(t)()
+
+	addNote("only note")
+
+	_, err := getNote(99)
+	if err == nil {
+		t.Fatal("expected error for missing ID, got nil")
+	}
+}
+
+func TestCmdView_InvalidIDString(t *testing.T) {
+	defer setupTempFile(t)()
+
+	err := cmdView("abc")
+	if err == nil {
+		t.Fatal("expected error for non-integer ID")
+	}
+}
+
+func TestCmdView_ValidIDShowsNote(t *testing.T) {
+	defer setupTempFile(t)()
+
+	addNote("check details")
+
+	if err := cmdView("1"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func TestCmdDone_InvalidIDString(t *testing.T) {
 	defer setupTempFile(t)()
 

@@ -35,6 +35,11 @@ func main() {
 			fatalf("usage: jot search <query>")
 		}
 		err = cmdSearch(os.Args[2])
+	case "view":
+		if len(os.Args) < 3 {
+			fatalf("usage: jot view <id>")
+		}
+		err = cmdView(os.Args[2])
 	case "clear":
 		force := len(os.Args) > 2 && os.Args[2] == "--force"
 		err = cmdClear(force)
@@ -68,6 +73,7 @@ Commands:
   edit <id> <text> Edit a note by id
   done <id>     Remove a note by id
   search <text> Search notes by text
+  view <id>     View full details of a note
   clear         Remove all notes
 
 Options:

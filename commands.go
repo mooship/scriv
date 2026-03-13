@@ -6,6 +6,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
 func cmdAdd(text string) error {
@@ -28,6 +29,24 @@ func cmdList() error {
 	}
 	for _, n := range notes {
 		fmt.Printf("[%d] %s\n", n.ID, n.Text)
+	}
+	fmt.Printf("%d notes.\n", len(notes))
+	return nil
+}
+
+func cmdView(idStr string) error {
+	id, err := strconv.ParseUint(idStr, 10, 64)
+	if err != nil || id == 0 {
+		return fmt.Errorf("id must be a positive integer")
+	}
+	note, err := getNote(id)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("[%d] %s\n", note.ID, note.Text)
+	t, err := time.Parse("2006-01-02T15:04:05Z", note.CreatedAt)
+	if err == nil {
+		fmt.Printf("    Created: %s\n", t.Format("2006-01-02"))
 	}
 	return nil
 }
