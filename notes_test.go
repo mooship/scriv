@@ -347,8 +347,6 @@ func TestCmdDone_ValidIDRemovesNote(t *testing.T) {
 	}
 }
 
-// UpdatedAt tests
-
 func TestAddNote_UpdatedAtIsEmpty(t *testing.T) {
 	defer setupTempFile(t)()
 
@@ -373,8 +371,6 @@ func TestEditNote_SetsUpdatedAt(t *testing.T) {
 		t.Errorf("UpdatedAt not a valid timestamp: %q", updated.UpdatedAt)
 	}
 }
-
-// tagNote tests
 
 func TestTagNote_AddsSingleTag(t *testing.T) {
 	defer setupTempFile(t)()
@@ -438,8 +434,6 @@ func TestTagNote_NotFoundReturnsError(t *testing.T) {
 	}
 }
 
-// untagNote tests
-
 func TestUntagNote_RemovesTag(t *testing.T) {
 	defer setupTempFile(t)()
 
@@ -492,8 +486,6 @@ func TestUntagNote_NotFoundReturnsError(t *testing.T) {
 	}
 }
 
-// listNotes sorting tests
-
 func TestListNotes_SortByID(t *testing.T) {
 	defer setupTempFile(t)()
 
@@ -520,8 +512,6 @@ func TestListNotes_SortByDate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	// descending: second (ID 2) should come before first (ID 1) when dates differ
-	// Since both may have the same second, just verify no error and correct count
 	if len(notes) != 2 {
 		t.Errorf("expected 2 notes, got %d", len(notes))
 	}
@@ -567,8 +557,6 @@ func TestListNotes_UnknownSortReturnsError(t *testing.T) {
 		t.Fatal("expected error for unknown sort, got nil")
 	}
 }
-
-// listNotes tag filtering tests
 
 func TestListNotes_FilterByTag_MatchesTagged(t *testing.T) {
 	defer setupTempFile(t)()
@@ -616,8 +604,6 @@ func TestListNotes_FilterByTag_EmptyTagMeansAll(t *testing.T) {
 	}
 }
 
-// searchNotes tag matching tests
-
 func TestSearchNotes_MatchesTag(t *testing.T) {
 	defer setupTempFile(t)()
 
@@ -647,8 +633,6 @@ func TestSearchNotes_TagMatchCaseInsensitive(t *testing.T) {
 		t.Errorf("expected case-insensitive tag match, got %+v", results)
 	}
 }
-
-// readStdinText tests
 
 func TestReadStdinText_ReturnsJoinedLines(t *testing.T) {
 	r := strings.NewReader("line one\nline two\n")
@@ -680,5 +664,4 @@ func TestReadStdinText_EmptyInputReturnsError(t *testing.T) {
 	}
 }
 
-// suppress unused import warning
 var _ = time.Now
