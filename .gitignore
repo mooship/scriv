@@ -1,0 +1,6 @@
+.claude/
+
+# Build output
+*.exe
+*.exe~
+jot
