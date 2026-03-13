@@ -45,6 +45,19 @@ func cmdDone(idStr string) error {
 	return nil
 }
 
+func cmdEdit(idStr string, text string) error {
+	id, err := strconv.ParseUint(idStr, 10, 64)
+	if err != nil || id == 0 {
+		return fmt.Errorf("id must be a positive integer")
+	}
+	note, err := editNote(id, text)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Updated [%d] %s\n", note.ID, note.Text)
+	return nil
+}
+
 func cmdSearch(query string) error {
 	results, err := searchNotes(query)
 	if err != nil {

@@ -52,6 +52,10 @@ jot list
 # [2] write tests
 # [3] update README
 
+# Edit a note
+jot edit 1 "fix the auth bug (critical)"
+# Updated [1] fix the auth bug (critical)
+
 # Mark a note done (removes it)
 jot done 2
 # Removed [2] write tests

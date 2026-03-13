@@ -20,6 +20,11 @@ func main() {
 		err = cmdAdd(os.Args[2])
 	case "list":
 		err = cmdList()
+	case "edit":
+		if len(os.Args) < 4 {
+			fatalf("usage: jot edit <id> <text>")
+		}
+		err = cmdEdit(os.Args[2], os.Args[3])
 	case "done":
 		if len(os.Args) < 3 {
 			fatalf("usage: jot done <id>")
@@ -60,6 +65,7 @@ Usage: jot <command> [arguments]
 Commands:
   add <text>    Add a new note
   list          List all notes
+  edit <id> <text> Edit a note by id
   done <id>     Remove a note by id
   search <text> Search notes by text
   clear         Remove all notes

@@ -204,6 +204,53 @@ func TestSearchNotes_MultipleMatches(t *testing.T) {
 	}
 }
 
+func TestEditNote_UpdatesText(t *testing.T) {
+	defer setupTempFile(t)()
+
+	addNote("original")
+
+	updated, err := editNote(1, "revised")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if updated.Text != "revised" {
+		t.Errorf("expected revised, got %s", updated.Text)
+	}
+}
+
+func TestEditNote_PersistsToDisk(t *testing.T) {
+	defer setupTempFile(t)()
+
+	addNote("original")
+	editNote(1, "revised")
+
+	notes, _ := loadNotes()
+	if notes[0].Text != "revised" {
+		t.Errorf("expected revised on disk, got %s", notes[0].Text)
+	}
+}
+
+func TestEditNote_PreservesID(t *testing.T) {
+	defer setupTempFile(t)()
+
+	addNote("original")
+	updated, _ := editNote(1, "revised")
+	if updated.ID != 1 {
+		t.Errorf("expected ID 1, got %d", updated.ID)
+	}
+}
+
+func TestEditNote_NotFoundReturnsError(t *testing.T) {
+	defer setupTempFile(t)()
+
+	addNote("only note")
+
+	_, err := editNote(99, "new text")
+	if err == nil {
+		t.Fatal("expected error for missing ID, got nil")
+	}
+}
+
 func TestClearNotes_EmptiesFile(t *testing.T) {
 	defer setupTempFile(t)()
 

@@ -122,6 +122,20 @@ func searchNotes(query string) ([]Note, error) {
 	return results, nil
 }
 
+func editNote(id uint64, text string) (Note, error) {
+	notes, err := loadNotes()
+	if err != nil {
+		return Note{}, err
+	}
+	for i, n := range notes {
+		if n.ID == id {
+			notes[i].Text = text
+			return notes[i], saveNotes(notes)
+		}
+	}
+	return Note{}, fmt.Errorf("no note with id %d", id)
+}
+
 func clearNotes() error {
 	return saveNotes([]Note{})
 }
