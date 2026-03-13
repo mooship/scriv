@@ -3,7 +3,9 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 )
 
 func setupTempFile(t *testing.T) func() {
@@ -344,3 +346,322 @@ func TestCmdDone_ValidIDRemovesNote(t *testing.T) {
 		t.Error("expected note to be removed")
 	}
 }
+
+func TestAddNote_UpdatedAtIsEmpty(t *testing.T) {
+	defer setupTempFile(t)()
+
+	note, _ := addNote("test")
+	if note.UpdatedAt != "" {
+		t.Errorf("expected UpdatedAt empty after add, got %q", note.UpdatedAt)
+	}
+}
+
+func TestEditNote_SetsUpdatedAt(t *testing.T) {
+	defer setupTempFile(t)()
+
+	addNote("original")
+	updated, err := editNote(1, "revised")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if updated.UpdatedAt == "" {
+		t.Error("expected UpdatedAt to be set after edit")
+	}
+	if _, err := time.Parse("2006-01-02T15:04:05Z", updated.UpdatedAt); err != nil {
+		t.Errorf("UpdatedAt not a valid timestamp: %q", updated.UpdatedAt)
+	}
+}
+
+func TestTagNote_AddsSingleTag(t *testing.T) {
+	defer setupTempFile(t)()
+
+	addNote("buy milk")
+	note, err := tagNote(1, []string{"groceries"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(note.Tags) != 1 || note.Tags[0] != "groceries" {
+		t.Errorf("unexpected tags: %v", note.Tags)
+	}
+}
+
+func TestTagNote_AddsMultipleTags(t *testing.T) {
+	defer setupTempFile(t)()
+
+	addNote("buy milk")
+	note, err := tagNote(1, []string{"groceries", "shopping"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(note.Tags) != 2 {
+		t.Errorf("expected 2 tags, got %v", note.Tags)
+	}
+}
+
+func TestTagNote_DeduplicatesTags(t *testing.T) {
+	defer setupTempFile(t)()
+
+	addNote("buy milk")
+	tagNote(1, []string{"groceries"})
+	note, err := tagNote(1, []string{"groceries"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(note.Tags) != 1 {
+		t.Errorf("expected 1 tag after dedup, got %v", note.Tags)
+	}
+}
+
+func TestTagNote_PersistsToDisk(t *testing.T) {
+	defer setupTempFile(t)()
+
+	addNote("buy milk")
+	tagNote(1, []string{"groceries"})
+
+	notes, _ := loadNotes()
+	if len(notes[0].Tags) != 1 || notes[0].Tags[0] != "groceries" {
+		t.Errorf("tags not persisted: %v", notes[0].Tags)
+	}
+}
+
+func TestTagNote_NotFoundReturnsError(t *testing.T) {
+	defer setupTempFile(t)()
+
+	addNote("only note")
+	_, err := tagNote(99, []string{"tag"})
+	if err == nil {
+		t.Fatal("expected error for missing ID, got nil")
+	}
+}
+
+func TestUntagNote_RemovesTag(t *testing.T) {
+	defer setupTempFile(t)()
+
+	addNote("buy milk")
+	tagNote(1, []string{"groceries"})
+	note, err := untagNote(1, "groceries")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(note.Tags) != 0 {
+		t.Errorf("expected no tags, got %v", note.Tags)
+	}
+}
+
+func TestUntagNote_LeavesOtherTagsIntact(t *testing.T) {
+	defer setupTempFile(t)()
+
+	addNote("buy milk")
+	tagNote(1, []string{"groceries", "shopping"})
+	note, err := untagNote(1, "shopping")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(note.Tags) != 1 || note.Tags[0] != "groceries" {
+		t.Errorf("unexpected tags after untag: %v", note.Tags)
+	}
+}
+
+func TestUntagNote_NonexistentTagIsNoop(t *testing.T) {
+	defer setupTempFile(t)()
+
+	addNote("buy milk")
+	tagNote(1, []string{"groceries"})
+	note, err := untagNote(1, "nonexistent")
+	if err != nil {
+		t.Fatalf("expected no error for missing tag, got: %v", err)
+	}
+	if len(note.Tags) != 1 {
+		t.Errorf("expected tags unchanged, got %v", note.Tags)
+	}
+}
+
+func TestUntagNote_NotFoundReturnsError(t *testing.T) {
+	defer setupTempFile(t)()
+
+	addNote("only note")
+	_, err := untagNote(99, "tag")
+	if err == nil {
+		t.Fatal("expected error for missing ID, got nil")
+	}
+}
+
+func TestListNotes_SortByID(t *testing.T) {
+	defer setupTempFile(t)()
+
+	addNote("first")
+	addNote("second")
+	addNote("third")
+
+	notes, err := listNotes(ListOptions{Sort: "id"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if notes[0].ID != 1 || notes[1].ID != 2 || notes[2].ID != 3 {
+		t.Errorf("unexpected order: %v", []uint64{notes[0].ID, notes[1].ID, notes[2].ID})
+	}
+}
+
+func TestListNotes_SortByDate(t *testing.T) {
+	defer setupTempFile(t)()
+
+	addNote("first")
+	addNote("second")
+
+	notes, err := listNotes(ListOptions{Sort: "date"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(notes) != 2 {
+		t.Errorf("expected 2 notes, got %d", len(notes))
+	}
+}
+
+func TestListNotes_SortByUpdated(t *testing.T) {
+	defer setupTempFile(t)()
+
+	addNote("first")
+	addNote("second")
+	editNote(1, "first edited")
+
+	notes, err := listNotes(ListOptions{Sort: "updated"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if notes[0].ID != 1 {
+		t.Errorf("expected edited note first, got ID %d", notes[0].ID)
+	}
+}
+
+func TestListNotes_SortByUpdatedFallsBackToCreatedAt(t *testing.T) {
+	defer setupTempFile(t)()
+
+	addNote("alpha")
+	addNote("beta")
+
+	notes, err := listNotes(ListOptions{Sort: "updated"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(notes) != 2 {
+		t.Errorf("expected 2 notes, got %d", len(notes))
+	}
+}
+
+func TestListNotes_UnknownSortReturnsError(t *testing.T) {
+	defer setupTempFile(t)()
+
+	addNote("test")
+	_, err := listNotes(ListOptions{Sort: "bogus"})
+	if err == nil {
+		t.Fatal("expected error for unknown sort, got nil")
+	}
+}
+
+func TestListNotes_FilterByTag_MatchesTagged(t *testing.T) {
+	defer setupTempFile(t)()
+
+	addNote("buy milk")
+	addNote("fix bug")
+	tagNote(1, []string{"groceries"})
+
+	notes, err := listNotes(ListOptions{Tag: "groceries"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(notes) != 1 || notes[0].ID != 1 {
+		t.Errorf("expected only note 1, got %+v", notes)
+	}
+}
+
+func TestListNotes_FilterByTag_NoMatches(t *testing.T) {
+	defer setupTempFile(t)()
+
+	addNote("buy milk")
+	tagNote(1, []string{"groceries"})
+
+	notes, err := listNotes(ListOptions{Tag: "work"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(notes) != 0 {
+		t.Errorf("expected no notes, got %d", len(notes))
+	}
+}
+
+func TestListNotes_FilterByTag_EmptyTagMeansAll(t *testing.T) {
+	defer setupTempFile(t)()
+
+	addNote("one")
+	addNote("two")
+
+	notes, err := listNotes(ListOptions{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(notes) != 2 {
+		t.Errorf("expected 2 notes, got %d", len(notes))
+	}
+}
+
+func TestSearchNotes_MatchesTag(t *testing.T) {
+	defer setupTempFile(t)()
+
+	addNote("buy milk")
+	tagNote(1, []string{"groceries"})
+
+	results, err := searchNotes("groc")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(results) != 1 || results[0].ID != 1 {
+		t.Errorf("expected note 1 to match via tag, got %+v", results)
+	}
+}
+
+func TestSearchNotes_TagMatchCaseInsensitive(t *testing.T) {
+	defer setupTempFile(t)()
+
+	addNote("buy milk")
+	tagNote(1, []string{"Groceries"})
+
+	results, err := searchNotes("groc")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(results) != 1 {
+		t.Errorf("expected case-insensitive tag match, got %+v", results)
+	}
+}
+
+func TestReadStdinText_ReturnsJoinedLines(t *testing.T) {
+	r := strings.NewReader("line one\nline two\n")
+	text, err := readStdinText(r)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if text != "line one\nline two" {
+		t.Errorf("unexpected text: %q", text)
+	}
+}
+
+func TestReadStdinText_TrimsWhitespace(t *testing.T) {
+	r := strings.NewReader("  hello  \n")
+	text, err := readStdinText(r)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if text != "hello" {
+		t.Errorf("expected trimmed text, got %q", text)
+	}
+}
+
+func TestReadStdinText_EmptyInputReturnsError(t *testing.T) {
+	r := strings.NewReader("   \n")
+	_, err := readStdinText(r)
+	if err == nil {
+		t.Fatal("expected error for empty input, got nil")
+	}
+}
+
+var _ = time.Now

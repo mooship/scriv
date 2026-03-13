@@ -6,14 +6,17 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 	"time"
 )
 
 type Note struct {
-	ID        uint64 `json:"id"`
-	Text      string `json:"text"`
-	CreatedAt string `json:"created_at"`
+	ID        uint64   `json:"id"`
+	Text      string   `json:"text"`
+	CreatedAt string   `json:"created_at"`
+	UpdatedAt string   `json:"updated_at,omitempty"`
+	Tags      []string `json:"tags,omitempty"`
 }
 
 var notesPathOverride string
@@ -115,7 +118,16 @@ func searchNotes(query string) ([]Note, error) {
 	q := strings.ToLower(query)
 	var results []Note
 	for _, n := range notes {
-		if strings.Contains(strings.ToLower(n.Text), q) {
+		matched := strings.Contains(strings.ToLower(n.Text), q)
+		if !matched {
+			for _, tag := range n.Tags {
+				if strings.Contains(strings.ToLower(tag), q) {
+					matched = true
+					break
+				}
+			}
+		}
+		if matched {
 			results = append(results, n)
 		}
 	}
@@ -130,6 +142,7 @@ func editNote(id uint64, text string) (Note, error) {
 	for i, n := range notes {
 		if n.ID == id {
 			notes[i].Text = text
+			notes[i].UpdatedAt = time.Now().UTC().Format("2006-01-02T15:04:05Z")
 			return notes[i], saveNotes(notes)
 		}
 	}
@@ -151,4 +164,96 @@ func getNote(id uint64) (Note, error) {
 
 func clearNotes() error {
 	return saveNotes([]Note{})
+}
+
+func tagNote(id uint64, tags []string) (Note, error) {
+	notes, err := loadNotes()
+	if err != nil {
+		return Note{}, err
+	}
+	for i, n := range notes {
+		if n.ID == id {
+			for _, newTag := range tags {
+				found := false
+				for _, existing := range notes[i].Tags {
+					if existing == newTag {
+						found = true
+						break
+					}
+				}
+				if !found {
+					notes[i].Tags = append(notes[i].Tags, newTag)
+				}
+			}
+			return notes[i], saveNotes(notes)
+		}
+	}
+	return Note{}, fmt.Errorf("no note with id %d", id)
+}
+
+func untagNote(id uint64, tag string) (Note, error) {
+	notes, err := loadNotes()
+	if err != nil {
+		return Note{}, err
+	}
+	for i, n := range notes {
+		if n.ID == id {
+			filtered := notes[i].Tags[:0]
+			for _, t := range notes[i].Tags {
+				if t != tag {
+					filtered = append(filtered, t)
+				}
+			}
+			notes[i].Tags = filtered
+			return notes[i], saveNotes(notes)
+		}
+	}
+	return Note{}, fmt.Errorf("no note with id %d", id)
+}
+
+type ListOptions struct {
+	Tag  string
+	Sort string
+}
+
+func listNotes(opts ListOptions) ([]Note, error) {
+	notes, err := loadNotes()
+	if err != nil {
+		return nil, err
+	}
+	if opts.Tag != "" {
+		var filtered []Note
+		for _, n := range notes {
+			for _, t := range n.Tags {
+				if t == opts.Tag {
+					filtered = append(filtered, n)
+					break
+				}
+			}
+		}
+		notes = filtered
+	}
+	switch opts.Sort {
+	case "", "id":
+		sort.Slice(notes, func(i, j int) bool {
+			return notes[i].ID < notes[j].ID
+		})
+	case "date":
+		sort.Slice(notes, func(i, j int) bool {
+			return notes[i].CreatedAt > notes[j].CreatedAt
+		})
+	case "updated":
+		key := func(n Note) string {
+			if n.UpdatedAt != "" {
+				return n.UpdatedAt
+			}
+			return n.CreatedAt
+		}
+		sort.Slice(notes, func(i, j int) bool {
+			return key(notes[i]) > key(notes[j])
+		})
+	default:
+		return nil, fmt.Errorf("unknown sort %q: use id, date, or updated", opts.Sort)
+	}
+	return notes, nil
 }
