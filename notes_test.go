@@ -41,7 +41,7 @@ func TestLoadNotes_CorruptedFileReturnsError(t *testing.T) {
 func TestLoadNotes_ValidFile(t *testing.T) {
 	defer setupTempFile(t)()
 
-	json := `[{"id":1,"text":"hello","created_at":"2025-01-01T00:00:00Z"}]`
+	json := `{"id":1,"text":"hello","created_at":"2025-01-01T00:00:00Z"}`
 	os.WriteFile(notesPathOverride, []byte(json), 0644)
 
 	notes, err := loadNotes()
