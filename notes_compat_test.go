@@ -202,7 +202,6 @@ func TestCompat_JSONKeys_TagsField(t *testing.T) {
 	}
 }
 
-
 func TestCompat_RoundTrip_PreservesAllFields(t *testing.T) {
 	defer setupTempFile(t)()
 	os.WriteFile(notesPathOverride, []byte(fixtureAllFields), 0644)
