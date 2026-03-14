@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 )
 
@@ -35,21 +36,39 @@ func main() {
 				opts.Tag = strings.TrimPrefix(arg, "--tag=")
 			} else if strings.HasPrefix(arg, "--sort=") {
 				opts.Sort = strings.TrimPrefix(arg, "--sort=")
+			} else if strings.HasPrefix(arg, "--limit=") {
+				n, e := strconv.Atoi(strings.TrimPrefix(arg, "--limit="))
+				if e != nil || n < 1 {
+					fatalf("--limit must be a positive integer")
+				}
+				opts.Limit = n
 			} else {
 				fatalf("unknown flag: %s", arg)
 			}
 		}
 		err = cmdList(opts)
 	case "edit":
-		if len(os.Args) < 4 {
+		if len(os.Args) < 3 {
 			fatalf("usage: jot edit <id> <text>")
 		}
-		err = cmdEdit(os.Args[2], strings.Join(os.Args[3:], " "))
+		var editText string
+		if stdinIsPiped() {
+			editText, err = readStdinText(os.Stdin)
+			if err != nil {
+				fatalf("%s", err)
+			}
+		} else {
+			if len(os.Args) < 4 {
+				fatalf("usage: jot edit <id> <text>")
+			}
+			editText = strings.Join(os.Args[3:], " ")
+		}
+		err = cmdEdit(os.Args[2], editText)
 	case "done":
 		if len(os.Args) < 3 {
-			fatalf("usage: jot done <id>")
+			fatalf("usage: jot done <id> [id2...]")
 		}
-		err = cmdDone(os.Args[2])
+		err = cmdDone(os.Args[2:])
 	case "search":
 		if len(os.Args) < 3 {
 			fatalf("usage: jot search <query>")
@@ -114,11 +133,11 @@ Usage: jot <command> [arguments]
 
 Commands:
   add <text>              Add a new note (or pipe text via stdin)
-  list [--tag=<tag>] [--sort=id|date|updated]
-                          List notes, optionally filtered and sorted
-  edit <id> <text>        Edit a note by id
+  list [--tag=<tag>] [--sort=id|date|updated] [--limit=N]
+                          List notes, optionally filtered, sorted, and limited
+  edit <id> <text>        Edit a note by id (or pipe new text via stdin)
   append <id> <text>      Append text to an existing note
-  done <id>               Remove a note by id
+  done <id> [id2...]      Remove one or more notes by id
   search <text>           Search notes by text or tag
   view <id>               View full details of a note
   tag <id> <tag1> [...]   Add tags to a note

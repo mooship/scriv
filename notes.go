@@ -148,6 +148,37 @@ func removeNote(id uint64) (Note, error) {
 	return Note{}, fmt.Errorf("no note with id %d", id)
 }
 
+func removeNotes(ids []uint64) ([]Note, error) {
+	notes, err := loadNotes()
+	if err != nil {
+		return nil, err
+	}
+	var removed []Note
+	var notFound []uint64
+	for _, id := range ids {
+		found := false
+		for i, n := range notes {
+			if n.ID == id {
+				removed = append(removed, n)
+				notes = append(notes[:i], notes[i+1:]...)
+				found = true
+				break
+			}
+		}
+		if !found {
+			notFound = append(notFound, id)
+		}
+	}
+	if len(notFound) > 0 {
+		parts := make([]string, len(notFound))
+		for i, id := range notFound {
+			parts[i] = fmt.Sprintf("%d", id)
+		}
+		return nil, fmt.Errorf("no note with id %s", strings.Join(parts, ", "))
+	}
+	return removed, saveNotes(notes)
+}
+
 func searchNotes(query string) ([]Note, error) {
 	notes, err := loadNotes()
 	if err != nil {
@@ -275,8 +306,9 @@ func appendNote(id uint64, text string) (Note, error) {
 }
 
 type ListOptions struct {
-	Tag  string
-	Sort string
+	Tag   string
+	Sort  string
+	Limit int
 }
 
 func listNotes(opts ListOptions) ([]Note, error) {
@@ -317,6 +349,9 @@ func listNotes(opts ListOptions) ([]Note, error) {
 		})
 	default:
 		return nil, fmt.Errorf("unknown sort %q: use id, date, or updated", opts.Sort)
+	}
+	if opts.Limit > 0 && len(notes) > opts.Limit {
+		notes = notes[:opts.Limit]
 	}
 	return notes, nil
 }
