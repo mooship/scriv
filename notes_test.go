@@ -317,7 +317,7 @@ func TestCmdView_ValidIDShowsNote(t *testing.T) {
 func TestCmdDone_InvalidIDString(t *testing.T) {
 	defer setupTempFile(t)()
 
-	err := cmdDone("abc")
+	err := cmdDone([]string{"abc"})
 	if err == nil {
 		t.Fatal("expected error for non-integer ID")
 	}
@@ -326,7 +326,7 @@ func TestCmdDone_InvalidIDString(t *testing.T) {
 func TestCmdDone_ZeroIDIsInvalid(t *testing.T) {
 	defer setupTempFile(t)()
 
-	err := cmdDone("0")
+	err := cmdDone([]string{"0"})
 	if err == nil {
 		t.Fatal("expected error for ID 0")
 	}
@@ -337,7 +337,7 @@ func TestCmdDone_ValidIDRemovesNote(t *testing.T) {
 
 	addNote("to remove")
 
-	if err := cmdDone("1"); err != nil {
+	if err := cmdDone([]string{"1"}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -744,6 +744,97 @@ func TestAppendNote_NotFoundReturnsError(t *testing.T) {
 	_, err := appendNote(99, "more")
 	if err == nil {
 		t.Fatal("expected error for missing ID, got nil")
+	}
+}
+
+func TestRemoveNotes_RemovesMultiple(t *testing.T) {
+	defer setupTempFile(t)()
+
+	addNote("alpha")
+	addNote("beta")
+	addNote("gamma")
+
+	removed, err := removeNotes([]uint64{1, 3})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(removed) != 2 {
+		t.Fatalf("expected 2 removed, got %d", len(removed))
+	}
+
+	notes, _ := loadNotes()
+	if len(notes) != 1 || notes[0].Text != "beta" {
+		t.Errorf("expected only beta to remain, got %+v", notes)
+	}
+}
+
+func TestRemoveNotes_NotFoundReturnsError(t *testing.T) {
+	defer setupTempFile(t)()
+
+	addNote("only note")
+
+	_, err := removeNotes([]uint64{99})
+	if err == nil {
+		t.Fatal("expected error for missing ID, got nil")
+	}
+}
+
+func TestRemoveNotes_PartialNotFoundReturnsError(t *testing.T) {
+	defer setupTempFile(t)()
+
+	addNote("alpha")
+	addNote("beta")
+
+	_, err := removeNotes([]uint64{1, 99})
+	if err == nil {
+		t.Fatal("expected error when one ID is missing, got nil")
+	}
+}
+
+func TestListNotes_LimitCapsResults(t *testing.T) {
+	defer setupTempFile(t)()
+
+	addNote("one")
+	addNote("two")
+	addNote("three")
+
+	notes, err := listNotes(ListOptions{Limit: 2})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(notes) != 2 {
+		t.Errorf("expected 2 notes with limit=2, got %d", len(notes))
+	}
+}
+
+func TestListNotes_LimitZeroMeansAll(t *testing.T) {
+	defer setupTempFile(t)()
+
+	addNote("one")
+	addNote("two")
+	addNote("three")
+
+	notes, err := listNotes(ListOptions{Limit: 0})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(notes) != 3 {
+		t.Errorf("expected 3 notes with no limit, got %d", len(notes))
+	}
+}
+
+func TestNoteAge_ReturnsNonEmpty(t *testing.T) {
+	ts := time.Now().UTC().Add(-48 * time.Hour).Format("2006-01-02T15:04:05Z")
+	age := noteAge(ts)
+	if age == "" || age == "?" {
+		t.Errorf("expected non-empty age, got %q", age)
+	}
+}
+
+func TestNoteAge_InvalidTimestamp(t *testing.T) {
+	age := noteAge("not-a-timestamp")
+	if age != "?" {
+		t.Errorf("expected '?' for invalid timestamp, got %q", age)
 	}
 }
 
