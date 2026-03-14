@@ -70,6 +70,13 @@ func main() {
 			fatalf("usage: jot untag <id> <tag>")
 		}
 		err = cmdUntag(os.Args[2], os.Args[3])
+	case "tags":
+		err = cmdTags()
+	case "append":
+		if len(os.Args) < 4 {
+			fatalf("usage: jot append <id> <text>")
+		}
+		err = cmdAppend(os.Args[2], strings.Join(os.Args[3:], " "))
 	case "clear":
 		force := len(os.Args) > 2 && os.Args[2] == "--force"
 		err = cmdClear(force)
@@ -110,11 +117,13 @@ Commands:
   list [--tag=<tag>] [--sort=id|date|updated]
                           List notes, optionally filtered and sorted
   edit <id> <text>        Edit a note by id
+  append <id> <text>      Append text to an existing note
   done <id>               Remove a note by id
   search <text>           Search notes by text or tag
   view <id>               View full details of a note
   tag <id> <tag1> [...]   Add tags to a note
   untag <id> <tag>        Remove a tag from a note
+  tags                    List all tags with note counts
   clear                   Remove all notes
 
 Options:

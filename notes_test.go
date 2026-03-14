@@ -664,4 +664,87 @@ func TestReadStdinText_EmptyInputReturnsError(t *testing.T) {
 	}
 }
 
+func TestCollectTags_EmptyNotes(t *testing.T) {
+	counts := collectTags([]Note{})
+	if len(counts) != 0 {
+		t.Errorf("expected empty map, got %v", counts)
+	}
+}
+
+func TestCollectTags_CountsCorrectly(t *testing.T) {
+	notes := []Note{
+		{ID: 1, Text: "a", Tags: []string{"bug", "work"}},
+		{ID: 2, Text: "b", Tags: []string{"bug"}},
+		{ID: 3, Text: "c", Tags: []string{"feature"}},
+	}
+	counts := collectTags(notes)
+	if counts["bug"] != 2 {
+		t.Errorf("expected bug count 2, got %d", counts["bug"])
+	}
+	if counts["work"] != 1 {
+		t.Errorf("expected work count 1, got %d", counts["work"])
+	}
+	if counts["feature"] != 1 {
+		t.Errorf("expected feature count 1, got %d", counts["feature"])
+	}
+}
+
+func TestCollectTags_NoTagsReturnsEmptyMap(t *testing.T) {
+	notes := []Note{
+		{ID: 1, Text: "no tags here"},
+	}
+	counts := collectTags(notes)
+	if len(counts) != 0 {
+		t.Errorf("expected empty map for untagged notes, got %v", counts)
+	}
+}
+
+func TestAppendNote_AppendsText(t *testing.T) {
+	defer setupTempFile(t)()
+
+	addNote("hello")
+	note, err := appendNote(1, "world")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if note.Text != "hello world" {
+		t.Errorf("expected 'hello world', got %q", note.Text)
+	}
+}
+
+func TestAppendNote_SetsUpdatedAt(t *testing.T) {
+	defer setupTempFile(t)()
+
+	addNote("hello")
+	note, err := appendNote(1, "world")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if note.UpdatedAt == "" {
+		t.Error("expected UpdatedAt to be set after append")
+	}
+}
+
+func TestAppendNote_PersistsToDisk(t *testing.T) {
+	defer setupTempFile(t)()
+
+	addNote("hello")
+	appendNote(1, "world")
+
+	notes, _ := loadNotes()
+	if notes[0].Text != "hello world" {
+		t.Errorf("expected persisted text 'hello world', got %q", notes[0].Text)
+	}
+}
+
+func TestAppendNote_NotFoundReturnsError(t *testing.T) {
+	defer setupTempFile(t)()
+
+	addNote("only note")
+	_, err := appendNote(99, "more")
+	if err == nil {
+		t.Fatal("expected error for missing ID, got nil")
+	}
+}
+
 var _ = time.Now
