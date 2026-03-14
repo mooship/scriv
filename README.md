@@ -46,23 +46,68 @@ go install .
 jot add "fix the auth bug"
 # Added [1] fix the auth bug
 
-# List all notes
+# Pipe text in from stdin
+echo "buy oat milk" | jot add
+
+# List all notes (shows age)
 jot list
-# [1] fix the auth bug
-# [2] write tests
-# [3] update README
+# [1] (2d) fix the auth bug
+# [2] (1h) write tests
+# [3] (<1h) update README
+# 3 notes.
+
+# Limit to the 5 most recent
+jot list --limit=5
+
+# Filter by tag
+jot list --tag=work
+
+# Sort by last-updated
+jot list --sort=updated
 
 # Edit a note
 jot edit 1 "fix the auth bug (critical)"
 # Updated [1] fix the auth bug (critical)
 
-# Mark a note done (removes it)
+# Edit via stdin
+echo "fix the auth bug (done)" | jot edit 1
+
+# Append to a note
+jot append 1 "— assigned to alice"
+# Updated [1] fix the auth bug (critical) — assigned to alice
+
+# Mark one or more notes done (removes them)
 jot done 2
 # Removed [2] write tests
 
-# Search notes
+jot done 1 3
+# Removed [1] fix the auth bug (critical) — assigned to alice
+# Removed [3] update README
+
+# Search notes (text and tags)
 jot search auth
 # [1] fix the auth bug
+# 1 matches.
+
+# View full details of a note
+jot view 1
+# [1] fix the auth bug
+#     Created: 2026-03-12
+#     Updated: 2026-03-14
+#     Tags: #work #critical
+
+# Tag a note
+jot tag 1 work critical
+# Tagged [1] fix the auth bug: #work #critical
+
+# Remove a tag
+jot untag 1 critical
+# Removed tag #critical from [1] fix the auth bug
+
+# List all tags with note counts
+jot tags
+# critical             1
+# work                 3
 
 # Clear all notes (prompts for confirmation)
 jot clear

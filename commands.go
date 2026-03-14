@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -29,7 +30,11 @@ func cmdList(opts ListOptions) error {
 		return nil
 	}
 	for _, n := range notes {
-		line := fmt.Sprintf("[%d] %s", n.ID, n.Text)
+		text := n.Text
+		if len(text) > 72 {
+			text = text[:72] + "..."
+		}
+		line := fmt.Sprintf("[%d] (%s) %s", n.ID, noteAge(n.CreatedAt), text)
 		if len(n.Tags) > 0 {
 			line += " #" + strings.Join(n.Tags, " #")
 		}
@@ -65,16 +70,22 @@ func cmdView(idStr string) error {
 	return nil
 }
 
-func cmdDone(idStr string) error {
-	id, err := strconv.ParseUint(idStr, 10, 64)
-	if err != nil || id == 0 {
-		return fmt.Errorf("id must be a positive integer")
+func cmdDone(idStrs []string) error {
+	var ids []uint64
+	for _, s := range idStrs {
+		id, err := strconv.ParseUint(s, 10, 64)
+		if err != nil || id == 0 {
+			return fmt.Errorf("id must be a positive integer: %s", s)
+		}
+		ids = append(ids, id)
 	}
-	note, err := removeNote(id)
+	removed, err := removeNotes(ids)
 	if err != nil {
 		return err
 	}
-	fmt.Printf("Removed [%d] %s\n", note.ID, note.Text)
+	for _, n := range removed {
+		fmt.Printf("Removed [%d] %s\n", n.ID, n.Text)
+	}
 	return nil
 }
 
@@ -91,6 +102,28 @@ func cmdEdit(idStr string, text string) error {
 	return nil
 }
 
+func noteAge(ts string) string {
+	t, err := time.Parse("2006-01-02T15:04:05Z", ts)
+	if err != nil {
+		return "?"
+	}
+	d := time.Since(t)
+	switch {
+	case d < time.Hour:
+		return "<1h"
+	case d < 24*time.Hour:
+		return fmt.Sprintf("%dh", int(d.Hours()))
+	case d < 14*24*time.Hour:
+		return fmt.Sprintf("%dd", int(d.Hours()/24))
+	case d < 56*24*time.Hour:
+		return fmt.Sprintf("%dw", int(d.Hours()/(7*24)))
+	case d < 730*24*time.Hour:
+		return fmt.Sprintf("%dmo", int(d.Hours()/(30*24)))
+	default:
+		return fmt.Sprintf("%dy", int(d.Hours()/(365*24)))
+	}
+}
+
 func cmdSearch(query string) error {
 	results, err := searchNotes(query)
 	if err != nil {
@@ -103,6 +136,7 @@ func cmdSearch(query string) error {
 	for _, n := range results {
 		fmt.Printf("[%d] %s\n", n.ID, n.Text)
 	}
+	fmt.Printf("%d matches.\n", len(results))
 	return nil
 }
 
@@ -129,6 +163,40 @@ func cmdUntag(idStr string, tag string) error {
 		return err
 	}
 	fmt.Printf("Removed tag #%s from [%d] %s\n", tag, note.ID, note.Text)
+	return nil
+}
+
+func cmdTags() error {
+	notes, err := loadNotes()
+	if err != nil {
+		return err
+	}
+	counts := collectTags(notes)
+	if len(counts) == 0 {
+		fmt.Println("No tags.")
+		return nil
+	}
+	tags := make([]string, 0, len(counts))
+	for t := range counts {
+		tags = append(tags, t)
+	}
+	sort.Strings(tags)
+	for _, t := range tags {
+		fmt.Printf("%-20s %d\n", t, counts[t])
+	}
+	return nil
+}
+
+func cmdAppend(idStr string, text string) error {
+	id, err := strconv.ParseUint(idStr, 10, 64)
+	if err != nil || id == 0 {
+		return fmt.Errorf("id must be a positive integer")
+	}
+	note, err := appendNote(id, text)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Updated [%d] %s\n", note.ID, note.Text)
 	return nil
 }
 

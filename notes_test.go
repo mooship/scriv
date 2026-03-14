@@ -317,7 +317,7 @@ func TestCmdView_ValidIDShowsNote(t *testing.T) {
 func TestCmdDone_InvalidIDString(t *testing.T) {
 	defer setupTempFile(t)()
 
-	err := cmdDone("abc")
+	err := cmdDone([]string{"abc"})
 	if err == nil {
 		t.Fatal("expected error for non-integer ID")
 	}
@@ -326,7 +326,7 @@ func TestCmdDone_InvalidIDString(t *testing.T) {
 func TestCmdDone_ZeroIDIsInvalid(t *testing.T) {
 	defer setupTempFile(t)()
 
-	err := cmdDone("0")
+	err := cmdDone([]string{"0"})
 	if err == nil {
 		t.Fatal("expected error for ID 0")
 	}
@@ -337,7 +337,7 @@ func TestCmdDone_ValidIDRemovesNote(t *testing.T) {
 
 	addNote("to remove")
 
-	if err := cmdDone("1"); err != nil {
+	if err := cmdDone([]string{"1"}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -661,6 +661,180 @@ func TestReadStdinText_EmptyInputReturnsError(t *testing.T) {
 	_, err := readStdinText(r)
 	if err == nil {
 		t.Fatal("expected error for empty input, got nil")
+	}
+}
+
+func TestCollectTags_EmptyNotes(t *testing.T) {
+	counts := collectTags([]Note{})
+	if len(counts) != 0 {
+		t.Errorf("expected empty map, got %v", counts)
+	}
+}
+
+func TestCollectTags_CountsCorrectly(t *testing.T) {
+	notes := []Note{
+		{ID: 1, Text: "a", Tags: []string{"bug", "work"}},
+		{ID: 2, Text: "b", Tags: []string{"bug"}},
+		{ID: 3, Text: "c", Tags: []string{"feature"}},
+	}
+	counts := collectTags(notes)
+	if counts["bug"] != 2 {
+		t.Errorf("expected bug count 2, got %d", counts["bug"])
+	}
+	if counts["work"] != 1 {
+		t.Errorf("expected work count 1, got %d", counts["work"])
+	}
+	if counts["feature"] != 1 {
+		t.Errorf("expected feature count 1, got %d", counts["feature"])
+	}
+}
+
+func TestCollectTags_NoTagsReturnsEmptyMap(t *testing.T) {
+	notes := []Note{
+		{ID: 1, Text: "no tags here"},
+	}
+	counts := collectTags(notes)
+	if len(counts) != 0 {
+		t.Errorf("expected empty map for untagged notes, got %v", counts)
+	}
+}
+
+func TestAppendNote_AppendsText(t *testing.T) {
+	defer setupTempFile(t)()
+
+	addNote("hello")
+	note, err := appendNote(1, "world")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if note.Text != "hello world" {
+		t.Errorf("expected 'hello world', got %q", note.Text)
+	}
+}
+
+func TestAppendNote_SetsUpdatedAt(t *testing.T) {
+	defer setupTempFile(t)()
+
+	addNote("hello")
+	note, err := appendNote(1, "world")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if note.UpdatedAt == "" {
+		t.Error("expected UpdatedAt to be set after append")
+	}
+}
+
+func TestAppendNote_PersistsToDisk(t *testing.T) {
+	defer setupTempFile(t)()
+
+	addNote("hello")
+	appendNote(1, "world")
+
+	notes, _ := loadNotes()
+	if notes[0].Text != "hello world" {
+		t.Errorf("expected persisted text 'hello world', got %q", notes[0].Text)
+	}
+}
+
+func TestAppendNote_NotFoundReturnsError(t *testing.T) {
+	defer setupTempFile(t)()
+
+	addNote("only note")
+	_, err := appendNote(99, "more")
+	if err == nil {
+		t.Fatal("expected error for missing ID, got nil")
+	}
+}
+
+func TestRemoveNotes_RemovesMultiple(t *testing.T) {
+	defer setupTempFile(t)()
+
+	addNote("alpha")
+	addNote("beta")
+	addNote("gamma")
+
+	removed, err := removeNotes([]uint64{1, 3})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(removed) != 2 {
+		t.Fatalf("expected 2 removed, got %d", len(removed))
+	}
+
+	notes, _ := loadNotes()
+	if len(notes) != 1 || notes[0].Text != "beta" {
+		t.Errorf("expected only beta to remain, got %+v", notes)
+	}
+}
+
+func TestRemoveNotes_NotFoundReturnsError(t *testing.T) {
+	defer setupTempFile(t)()
+
+	addNote("only note")
+
+	_, err := removeNotes([]uint64{99})
+	if err == nil {
+		t.Fatal("expected error for missing ID, got nil")
+	}
+}
+
+func TestRemoveNotes_PartialNotFoundReturnsError(t *testing.T) {
+	defer setupTempFile(t)()
+
+	addNote("alpha")
+	addNote("beta")
+
+	_, err := removeNotes([]uint64{1, 99})
+	if err == nil {
+		t.Fatal("expected error when one ID is missing, got nil")
+	}
+}
+
+func TestListNotes_LimitCapsResults(t *testing.T) {
+	defer setupTempFile(t)()
+
+	addNote("one")
+	addNote("two")
+	addNote("three")
+
+	notes, err := listNotes(ListOptions{Limit: 2})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(notes) != 2 {
+		t.Errorf("expected 2 notes with limit=2, got %d", len(notes))
+	}
+}
+
+func TestListNotes_LimitZeroMeansAll(t *testing.T) {
+	defer setupTempFile(t)()
+
+	addNote("one")
+	addNote("two")
+	addNote("three")
+
+	notes, err := listNotes(ListOptions{Limit: 0})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(notes) != 3 {
+		t.Errorf("expected 3 notes with no limit, got %d", len(notes))
+	}
+}
+
+func TestNoteAge_ReturnsNonEmpty(t *testing.T) {
+	ts := time.Now().UTC().Add(-48 * time.Hour).Format("2006-01-02T15:04:05Z")
+	age := noteAge(ts)
+	if age == "" || age == "?" {
+		t.Errorf("expected non-empty age, got %q", age)
+	}
+}
+
+func TestNoteAge_InvalidTimestamp(t *testing.T) {
+	age := noteAge("not-a-timestamp")
+	if age != "?" {
+		t.Errorf("expected '?' for invalid timestamp, got %q", age)
 	}
 }
 
