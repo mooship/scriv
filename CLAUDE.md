@@ -29,3 +29,7 @@ Notes persist as JSON at a platform-specific path resolved by `notesPath()` in `
 ### ID assignment
 
 IDs are not sequential integers from a counter — new notes get `max(existing IDs) + 1`. IDs are stable after deletion (gaps are preserved).
+
+### Backwards compatibility
+
+`notes.json` is user data that persists across app versions. Never rename or remove existing JSON keys on the `Note` struct. New optional fields must use `omitempty`. The `notes_compat_test.go` file pins the current schema — all fixtures there must continue to load correctly.
