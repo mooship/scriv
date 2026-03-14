@@ -5,37 +5,19 @@ import (
 	"testing"
 )
 
-const fixtureMinimal = `[
-  {"id":1,"text":"hello world","created_at":"2024-01-15T10:30:00Z"}
-]`
+const fixtureMinimal = `{"id":1,"text":"hello world","created_at":"2024-01-15T10:30:00Z"}`
 
-const fixtureWithUpdatedAt = `[
-  {"id":1,"text":"original","created_at":"2024-01-15T10:30:00Z","updated_at":"2024-02-01T08:00:00Z"}
-]`
+const fixtureWithUpdatedAt = `{"id":1,"text":"original","created_at":"2024-01-15T10:30:00Z","updated_at":"2024-02-01T08:00:00Z"}`
 
-const fixtureWithTags = `[
-  {"id":1,"text":"buy milk","created_at":"2024-01-15T10:30:00Z","tags":["groceries","errands"]}
-]`
+const fixtureWithTags = `{"id":1,"text":"buy milk","created_at":"2024-01-15T10:30:00Z","tags":["groceries","errands"]}`
 
-const fixtureAllFields = `[
-  {
-    "id":42,
-    "text":"full note",
-    "created_at":"2024-03-01T12:00:00Z",
-    "updated_at":"2024-03-10T09:00:00Z",
-    "tags":["work","important"]
-  }
-]`
+const fixtureAllFields = `{"id":42,"text":"full note","created_at":"2024-03-01T12:00:00Z","updated_at":"2024-03-10T09:00:00Z","tags":["work","important"]}`
 
-const fixtureMultipleNotes = `[
-  {"id":1,"text":"first","created_at":"2024-01-01T00:00:00Z"},
-  {"id":2,"text":"second","created_at":"2024-01-02T00:00:00Z","tags":["a"]},
-  {"id":5,"text":"fifth","created_at":"2024-01-05T00:00:00Z","updated_at":"2024-01-06T00:00:00Z","tags":["b","c"]}
-]`
+const fixtureMultipleNotes = `{"id":1,"text":"first","created_at":"2024-01-01T00:00:00Z"}
+{"id":2,"text":"second","created_at":"2024-01-02T00:00:00Z","tags":["a"]}
+{"id":5,"text":"fifth","created_at":"2024-01-05T00:00:00Z","updated_at":"2024-01-06T00:00:00Z","tags":["b","c"]}`
 
-const fixtureUnknownFields = `[
-  {"id":1,"text":"note","created_at":"2024-01-01T00:00:00Z","future_field":"ignored","another":123}
-]`
+const fixtureUnknownFields = `{"id":1,"text":"note","created_at":"2024-01-01T00:00:00Z","future_field":"ignored","another":123}`
 
 func TestCompat_MinimalNote_LoadsWithoutError(t *testing.T) {
 	defer setupTempFile(t)()
@@ -172,7 +154,7 @@ func TestCompat_UnknownFields_IgnoredOnLoad(t *testing.T) {
 
 func TestCompat_JSONKeys_IDField(t *testing.T) {
 	defer setupTempFile(t)()
-	os.WriteFile(notesPathOverride, []byte(`[{"id":7,"text":"x","created_at":"2024-01-01T00:00:00Z"}]`), 0644)
+	os.WriteFile(notesPathOverride, []byte(`{"id":7,"text":"x","created_at":"2024-01-01T00:00:00Z"}`), 0644)
 
 	notes, _ := loadNotes()
 	if notes[0].ID != 7 {
@@ -182,7 +164,7 @@ func TestCompat_JSONKeys_IDField(t *testing.T) {
 
 func TestCompat_JSONKeys_TextField(t *testing.T) {
 	defer setupTempFile(t)()
-	os.WriteFile(notesPathOverride, []byte(`[{"id":1,"text":"the text","created_at":"2024-01-01T00:00:00Z"}]`), 0644)
+	os.WriteFile(notesPathOverride, []byte(`{"id":1,"text":"the text","created_at":"2024-01-01T00:00:00Z"}`), 0644)
 
 	notes, _ := loadNotes()
 	if notes[0].Text != "the text" {
@@ -192,7 +174,7 @@ func TestCompat_JSONKeys_TextField(t *testing.T) {
 
 func TestCompat_JSONKeys_CreatedAtField(t *testing.T) {
 	defer setupTempFile(t)()
-	os.WriteFile(notesPathOverride, []byte(`[{"id":1,"text":"x","created_at":"2024-06-01T00:00:00Z"}]`), 0644)
+	os.WriteFile(notesPathOverride, []byte(`{"id":1,"text":"x","created_at":"2024-06-01T00:00:00Z"}`), 0644)
 
 	notes, _ := loadNotes()
 	if notes[0].CreatedAt != "2024-06-01T00:00:00Z" {
@@ -202,7 +184,7 @@ func TestCompat_JSONKeys_CreatedAtField(t *testing.T) {
 
 func TestCompat_JSONKeys_UpdatedAtField(t *testing.T) {
 	defer setupTempFile(t)()
-	os.WriteFile(notesPathOverride, []byte(`[{"id":1,"text":"x","created_at":"2024-01-01T00:00:00Z","updated_at":"2024-07-01T00:00:00Z"}]`), 0644)
+	os.WriteFile(notesPathOverride, []byte(`{"id":1,"text":"x","created_at":"2024-01-01T00:00:00Z","updated_at":"2024-07-01T00:00:00Z"}`), 0644)
 
 	notes, _ := loadNotes()
 	if notes[0].UpdatedAt != "2024-07-01T00:00:00Z" {
@@ -212,7 +194,7 @@ func TestCompat_JSONKeys_UpdatedAtField(t *testing.T) {
 
 func TestCompat_JSONKeys_TagsField(t *testing.T) {
 	defer setupTempFile(t)()
-	os.WriteFile(notesPathOverride, []byte(`[{"id":1,"text":"x","created_at":"2024-01-01T00:00:00Z","tags":["foo"]}]`), 0644)
+	os.WriteFile(notesPathOverride, []byte(`{"id":1,"text":"x","created_at":"2024-01-01T00:00:00Z","tags":["foo"]}`), 0644)
 
 	notes, _ := loadNotes()
 	if len(notes[0].Tags) != 1 || notes[0].Tags[0] != "foo" {

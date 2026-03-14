@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bufio"
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -55,8 +57,23 @@ func loadNotes() ([]Note, error) {
 		return nil, fmt.Errorf("cannot read from %s: %w", path, err)
 	}
 	var notes []Note
-	if err := json.Unmarshal(data, &notes); err != nil {
-		return nil, fmt.Errorf("notes file is corrupted. Run 'jot clear --force' to reset.")
+	scanner := bufio.NewScanner(bytes.NewReader(data))
+	for scanner.Scan() {
+		line := bytes.TrimSpace(scanner.Bytes())
+		if len(line) == 0 {
+			continue
+		}
+		var n Note
+		if err := json.Unmarshal(line, &n); err != nil {
+			return nil, fmt.Errorf("notes file is corrupted. Run 'jot clear --force' to reset.")
+		}
+		notes = append(notes, n)
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("cannot read from %s: %w", path, err)
+	}
+	if notes == nil {
+		return []Note{}, nil
 	}
 	return notes, nil
 }
@@ -67,16 +84,21 @@ func saveNotes(notes []Note) error {
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("cannot write to %s: %w", dir, err)
 	}
-	data, err := json.MarshalIndent(notes, "", "  ")
-	if err != nil {
-		return err
+	var buf bytes.Buffer
+	for _, n := range notes {
+		line, err := json.Marshal(n)
+		if err != nil {
+			return err
+		}
+		buf.Write(line)
+		buf.WriteByte('\n')
 	}
 	tmp, err := os.CreateTemp(dir, "notes-*.json")
 	if err != nil {
 		return fmt.Errorf("cannot write to %s: %w", dir, err)
 	}
 	tmpName := tmp.Name()
-	if _, err := tmp.Write(data); err != nil {
+	if _, err := tmp.Write(buf.Bytes()); err != nil {
 		tmp.Close()
 		os.Remove(tmpName)
 		return fmt.Errorf("cannot write to %s: %w", tmpName, err)
