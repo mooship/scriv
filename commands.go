@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -29,7 +30,11 @@ func cmdList(opts ListOptions) error {
 		return nil
 	}
 	for _, n := range notes {
-		line := fmt.Sprintf("[%d] %s", n.ID, n.Text)
+		text := n.Text
+		if len(text) > 72 {
+			text = text[:72] + "..."
+		}
+		line := fmt.Sprintf("[%d] %s", n.ID, text)
 		if len(n.Tags) > 0 {
 			line += " #" + strings.Join(n.Tags, " #")
 		}
@@ -129,6 +134,40 @@ func cmdUntag(idStr string, tag string) error {
 		return err
 	}
 	fmt.Printf("Removed tag #%s from [%d] %s\n", tag, note.ID, note.Text)
+	return nil
+}
+
+func cmdTags() error {
+	notes, err := loadNotes()
+	if err != nil {
+		return err
+	}
+	counts := collectTags(notes)
+	if len(counts) == 0 {
+		fmt.Println("No tags.")
+		return nil
+	}
+	tags := make([]string, 0, len(counts))
+	for t := range counts {
+		tags = append(tags, t)
+	}
+	sort.Strings(tags)
+	for _, t := range tags {
+		fmt.Printf("%-20s %d\n", t, counts[t])
+	}
+	return nil
+}
+
+func cmdAppend(idStr string, text string) error {
+	id, err := strconv.ParseUint(idStr, 10, 64)
+	if err != nil || id == 0 {
+		return fmt.Errorf("id must be a positive integer")
+	}
+	note, err := appendNote(id, text)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Updated [%d] %s\n", note.ID, note.Text)
 	return nil
 }
 

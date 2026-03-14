@@ -249,6 +249,31 @@ func untagNote(id uint64, tag string) (Note, error) {
 	return Note{}, fmt.Errorf("no note with id %d", id)
 }
 
+func collectTags(notes []Note) map[string]int {
+	counts := map[string]int{}
+	for _, n := range notes {
+		for _, t := range n.Tags {
+			counts[t]++
+		}
+	}
+	return counts
+}
+
+func appendNote(id uint64, text string) (Note, error) {
+	notes, err := loadNotes()
+	if err != nil {
+		return Note{}, err
+	}
+	for i, n := range notes {
+		if n.ID == id {
+			notes[i].Text = n.Text + " " + text
+			notes[i].UpdatedAt = time.Now().UTC().Format("2006-01-02T15:04:05Z")
+			return notes[i], saveNotes(notes)
+		}
+	}
+	return Note{}, fmt.Errorf("no note with id %d", id)
+}
+
 type ListOptions struct {
 	Tag  string
 	Sort string
