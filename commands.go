@@ -298,11 +298,10 @@ func stdoutIsTerminal() bool {
 	return (fi.Mode() & os.ModeCharDevice) != 0
 }
 
-// promptPassword prints msg to stderr and reads a password from the terminal without echo.
 func promptPassword(msg string) (string, error) {
 	fmt.Fprint(os.Stderr, msg)
 	pw, err := term.ReadPassword(int(os.Stdin.Fd()))
-	fmt.Fprintln(os.Stderr) // newline after hidden input
+	fmt.Fprintln(os.Stderr)
 	if err != nil {
 		return "", err
 	}
@@ -310,13 +309,11 @@ func promptPassword(msg string) (string, error) {
 }
 
 func cmdLock() error {
-	// If already encrypted, verify current password before changing.
 	if notesFileIsEncrypted() {
 		cur, err := promptPassword("Current password: ")
 		if err != nil {
 			return err
 		}
-		// Verify by attempting to load notes with this password.
 		activePassword = cur
 		if _, err := loadNotes(); err != nil {
 			activePassword = ""
@@ -324,7 +321,6 @@ func cmdLock() error {
 		}
 	}
 
-	// Prompt for new password with confirmation.
 	pw, err := promptPassword("New password: ")
 	if err != nil {
 		return err
@@ -340,7 +336,6 @@ func cmdLock() error {
 		return fmt.Errorf("passwords do not match")
 	}
 
-	// Load notes with current password (already set in activePassword), then re-save with new password.
 	notes, err := loadNotes()
 	if err != nil {
 		return err
@@ -368,7 +363,6 @@ func cmdUnlock() error {
 		activePassword = ""
 		return err
 	}
-	// Save as plaintext by clearing activePassword before save.
 	activePassword = ""
 	if err := saveNotes(notes); err != nil {
 		return err

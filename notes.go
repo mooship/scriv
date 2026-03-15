@@ -29,23 +29,17 @@ type Note struct {
 
 var notesPathOverride string
 
-// activePassword holds the password used to encrypt/decrypt notes.
-// Set to a non-empty string to enable encryption on save and decryption on load.
 var activePassword string
 
-// encryptedMagic is the 4-byte file header that marks an encrypted notes file.
-// Chosen so that the first byte 'J' (0x4A) is unambiguous vs '{' (0x7B) in NDJSON.
 const encryptedMagic = "JOT\x01"
 
 const (
 	pbkdf2Iters  = 100_000
-	pbkdf2KeyLen = 32 // AES-256
+	pbkdf2KeyLen = 32
 	saltLen      = 32
-	nonceLen     = 12 // AES-GCM standard nonce size
+	nonceLen     = 12
 )
 
-// encryptNotes encrypts plaintext NDJSON with AES-256-GCM using a PBKDF2-derived key.
-// Output format: [4-byte magic][32-byte salt][12-byte nonce][ciphertext+16-byte tag]
 func encryptNotes(plaintext []byte, password string) ([]byte, error) {
 	salt := make([]byte, saltLen)
 	if _, err := io.ReadFull(rand.Reader, salt); err != nil {
@@ -76,10 +70,8 @@ func encryptNotes(plaintext []byte, password string) ([]byte, error) {
 	return out, nil
 }
 
-// decryptNotes decrypts data produced by encryptNotes.
-// Returns an error containing "incorrect password" when authentication fails.
 func decryptNotes(data []byte, password string) ([]byte, error) {
-	minLen := len(encryptedMagic) + saltLen + nonceLen + 16 // 16 = GCM tag
+	minLen := len(encryptedMagic) + saltLen + nonceLen + 16
 	if len(data) < minLen {
 		return nil, fmt.Errorf("notes file is corrupted")
 	}
@@ -112,7 +104,6 @@ func decryptNotes(data []byte, password string) ([]byte, error) {
 	return plaintext, nil
 }
 
-// notesFileIsEncrypted reports whether the current notes file starts with the encrypted magic header.
 func notesFileIsEncrypted() bool {
 	f, err := os.Open(notesPath())
 	if err != nil {
@@ -124,7 +115,6 @@ func notesFileIsEncrypted() bool {
 	return n == len(encryptedMagic) && string(header) == encryptedMagic
 }
 
-// isEncryptedData reports whether a byte slice starts with the encrypted magic header.
 func isEncryptedData(data []byte) bool {
 	return len(data) >= len(encryptedMagic) && string(data[:len(encryptedMagic)]) == encryptedMagic
 }

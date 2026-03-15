@@ -72,11 +72,9 @@ func TestIsEncryptedData_encrypted(t *testing.T) {
 
 func TestNotesFileIsEncrypted_plain(t *testing.T) {
 	defer setupTempFile(t)()
-	// No file yet — should return false.
 	if notesFileIsEncrypted() {
 		t.Error("missing file should not be detected as encrypted")
 	}
-	// Write plain NDJSON.
 	if err := os.WriteFile(notesPath(), []byte(`{"id":1,"text":"hi","created_at":"2024-01-01T00:00:00Z"}`+"\n"), 0600); err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}
@@ -116,7 +114,6 @@ func TestSaveLoadEncryptedNotes(t *testing.T) {
 		t.Fatalf("saveNotes: %v", err)
 	}
 
-	// File should be encrypted on disk.
 	raw, err := os.ReadFile(notesPath())
 	if err != nil {
 		t.Fatalf("ReadFile: %v", err)
@@ -141,7 +138,6 @@ func TestSaveLoadEncryptedNotes(t *testing.T) {
 
 func TestSaveLoadNoPassword(t *testing.T) {
 	defer setupTempFile(t)()
-	// Ensure activePassword is empty (default behaviour).
 	activePassword = ""
 
 	want := []Note{
