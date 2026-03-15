@@ -14,8 +14,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	// If the notes file is encrypted and the command needs to read/write notes,
-	// prompt for the password once before dispatch.
 	noPromptCmds := map[string]bool{
 		"lock": true, "unlock": true,
 		"-h": true, "--help": true, "help": true,
