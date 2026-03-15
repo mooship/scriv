@@ -148,7 +148,7 @@ func removeNote(id uint64) (Note, error) {
 	return Note{}, fmt.Errorf("no note with id %d", id)
 }
 
-func removeNotes(ids []uint64) ([]Note, error) {
+func removeNotes(ids []uint64, force bool) ([]Note, error) {
 	notes, err := loadNotes()
 	if err != nil {
 		return nil, err
@@ -169,12 +169,12 @@ func removeNotes(ids []uint64) ([]Note, error) {
 			notFound = append(notFound, id)
 		}
 	}
-	if len(notFound) > 0 {
+	if !force && len(notFound) > 0 {
 		parts := make([]string, len(notFound))
 		for i, id := range notFound {
 			parts[i] = fmt.Sprintf("%d", id)
 		}
-		return nil, fmt.Errorf("no note with id %s", strings.Join(parts, ", "))
+		return nil, fmt.Errorf("no note with id %s; no notes were removed", strings.Join(parts, ", "))
 	}
 	return removed, saveNotes(notes)
 }
@@ -233,6 +233,24 @@ func getNote(id uint64) (Note, error) {
 
 func clearNotes() error {
 	return saveNotes([]Note{})
+}
+
+func importNotes(incoming []Note) error {
+	notes, err := loadNotes()
+	if err != nil {
+		return err
+	}
+	var maxID uint64
+	for _, n := range notes {
+		if n.ID > maxID {
+			maxID = n.ID
+		}
+	}
+	for i := range incoming {
+		maxID++
+		incoming[i].ID = maxID
+	}
+	return saveNotes(append(notes, incoming...))
 }
 
 func tagNote(id uint64, tags []string) (Note, error) {
@@ -309,6 +327,7 @@ type ListOptions struct {
 	Tag   string
 	Sort  string
 	Limit int
+	Full  bool
 }
 
 func listNotes(opts ListOptions) ([]Note, error) {
@@ -320,7 +339,7 @@ func listNotes(opts ListOptions) ([]Note, error) {
 		var filtered []Note
 		for _, n := range notes {
 			for _, t := range n.Tags {
-				if t == opts.Tag {
+				if strings.EqualFold(t, opts.Tag) {
 					filtered = append(filtered, n)
 					break
 				}

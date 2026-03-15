@@ -317,7 +317,7 @@ func TestCmdView_ValidIDShowsNote(t *testing.T) {
 func TestCmdDone_InvalidIDString(t *testing.T) {
 	defer setupTempFile(t)()
 
-	err := cmdDone([]string{"abc"})
+	err := cmdDone([]string{"abc"}, false)
 	if err == nil {
 		t.Fatal("expected error for non-integer ID")
 	}
@@ -326,7 +326,7 @@ func TestCmdDone_InvalidIDString(t *testing.T) {
 func TestCmdDone_ZeroIDIsInvalid(t *testing.T) {
 	defer setupTempFile(t)()
 
-	err := cmdDone([]string{"0"})
+	err := cmdDone([]string{"0"}, false)
 	if err == nil {
 		t.Fatal("expected error for ID 0")
 	}
@@ -337,7 +337,7 @@ func TestCmdDone_ValidIDRemovesNote(t *testing.T) {
 
 	addNote("to remove")
 
-	if err := cmdDone([]string{"1"}); err != nil {
+	if err := cmdDone([]string{"1"}, false); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -754,7 +754,7 @@ func TestRemoveNotes_RemovesMultiple(t *testing.T) {
 	addNote("beta")
 	addNote("gamma")
 
-	removed, err := removeNotes([]uint64{1, 3})
+	removed, err := removeNotes([]uint64{1, 3}, false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -773,7 +773,7 @@ func TestRemoveNotes_NotFoundReturnsError(t *testing.T) {
 
 	addNote("only note")
 
-	_, err := removeNotes([]uint64{99})
+	_, err := removeNotes([]uint64{99}, false)
 	if err == nil {
 		t.Fatal("expected error for missing ID, got nil")
 	}
@@ -785,7 +785,7 @@ func TestRemoveNotes_PartialNotFoundReturnsError(t *testing.T) {
 	addNote("alpha")
 	addNote("beta")
 
-	_, err := removeNotes([]uint64{1, 99})
+	_, err := removeNotes([]uint64{1, 99}, false)
 	if err == nil {
 		t.Fatal("expected error when one ID is missing, got nil")
 	}
@@ -839,3 +839,139 @@ func TestNoteAge_InvalidTimestamp(t *testing.T) {
 }
 
 var _ = time.Now
+
+func TestListNotes_FilterByTag_CaseInsensitive(t *testing.T) {
+	defer setupTempFile(t)()
+
+	addNote("buy milk")
+	tagNote(1, []string{"Groceries"})
+
+	notes, err := listNotes(ListOptions{Tag: "groceries"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(notes) != 1 || notes[0].ID != 1 {
+		t.Errorf("expected case-insensitive tag match, got %+v", notes)
+	}
+}
+
+func TestRemoveNotes_ForceIgnoresMissing(t *testing.T) {
+	defer setupTempFile(t)()
+
+	addNote("alpha")
+	addNote("beta")
+
+	removed, err := removeNotes([]uint64{1, 99}, true)
+	if err != nil {
+		t.Fatalf("expected no error with force=true, got: %v", err)
+	}
+	if len(removed) != 1 || removed[0].ID != 1 {
+		t.Errorf("expected only note 1 removed, got %+v", removed)
+	}
+
+	notes, _ := loadNotes()
+	if len(notes) != 1 || notes[0].ID != 2 {
+		t.Errorf("expected only note 2 to remain, got %+v", notes)
+	}
+}
+
+func TestRemoveNotes_ErrorMentionsNoNotesRemoved(t *testing.T) {
+	defer setupTempFile(t)()
+
+	addNote("alpha")
+	addNote("beta")
+
+	_, err := removeNotes([]uint64{1, 99}, false)
+	if err == nil {
+		t.Fatal("expected error for missing ID, got nil")
+	}
+	if !strings.Contains(err.Error(), "no notes were removed") {
+		t.Errorf("expected error to contain 'no notes were removed', got: %v", err)
+	}
+
+	notes, _ := loadNotes()
+	if len(notes) != 2 {
+		t.Errorf("expected notes unchanged after error, got %d", len(notes))
+	}
+}
+
+func TestCmdClear_NoNotesExitsEarly(t *testing.T) {
+	defer setupTempFile(t)()
+
+	if err := cmdClear(true); err != nil {
+		t.Fatalf("unexpected error clearing empty notes: %v", err)
+	}
+}
+
+func TestImportNotes_AssignsNewIDs(t *testing.T) {
+	defer setupTempFile(t)()
+
+	addNote("existing")
+
+	incoming := []Note{
+		{ID: 1, Text: "imported one", CreatedAt: "2024-01-01T00:00:00Z"},
+		{ID: 2, Text: "imported two", CreatedAt: "2024-01-02T00:00:00Z"},
+	}
+
+	if err := importNotes(incoming); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	notes, _ := loadNotes()
+	if len(notes) != 3 {
+		t.Fatalf("expected 3 notes, got %d", len(notes))
+	}
+	if notes[1].ID != 2 || notes[2].ID != 3 {
+		t.Errorf("expected imported IDs 2 and 3, got %d and %d", notes[1].ID, notes[2].ID)
+	}
+}
+
+func TestImportNotes_PreservesTextAndTags(t *testing.T) {
+	defer setupTempFile(t)()
+
+	incoming := []Note{
+		{ID: 99, Text: "important note", CreatedAt: "2024-01-01T00:00:00Z", Tags: []string{"tag1"}},
+	}
+
+	if err := importNotes(incoming); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	notes, _ := loadNotes()
+	if len(notes) != 1 {
+		t.Fatalf("expected 1 note, got %d", len(notes))
+	}
+	if notes[0].Text != "important note" {
+		t.Errorf("expected text preserved, got %q", notes[0].Text)
+	}
+	if len(notes[0].Tags) != 1 || notes[0].Tags[0] != "tag1" {
+		t.Errorf("expected tags preserved, got %v", notes[0].Tags)
+	}
+}
+
+func TestHighlightMatch_WrapsMatch(t *testing.T) {
+	result := highlightMatch("fix the auth bug", "auth")
+	if !strings.Contains(result, "auth") {
+		t.Error("expected match to remain in output")
+	}
+	if !strings.Contains(result, "\033[") {
+		t.Error("expected ANSI escape codes in output")
+	}
+}
+
+func TestHighlightMatch_CaseInsensitive(t *testing.T) {
+	result := highlightMatch("Fix the Auth Bug", "auth")
+	if !strings.Contains(result, "Auth") {
+		t.Error("expected original casing preserved")
+	}
+	if !strings.Contains(result, "\033[") {
+		t.Error("expected ANSI escape codes")
+	}
+}
+
+func TestHighlightMatch_NoMatch(t *testing.T) {
+	result := highlightMatch("hello world", "zzz")
+	if result != "hello world" {
+		t.Errorf("expected unchanged text when no match, got %q", result)
+	}
+}

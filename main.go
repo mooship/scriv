@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"runtime/debug"
 	"strconv"
 	"strings"
 )
@@ -42,6 +43,8 @@ func main() {
 					fatalf("--limit must be a positive integer")
 				}
 				opts.Limit = n
+			} else if arg == "--full" {
+				opts.Full = true
 			} else {
 				fatalf("unknown flag: %s", arg)
 			}
@@ -65,10 +68,19 @@ func main() {
 		}
 		err = cmdEdit(os.Args[2], editText)
 	case "done":
-		if len(os.Args) < 3 {
-			fatalf("usage: jot done <id> [id2...]")
+		force := false
+		var doneArgs []string
+		for _, arg := range os.Args[2:] {
+			if arg == "--force" {
+				force = true
+			} else {
+				doneArgs = append(doneArgs, arg)
+			}
 		}
-		err = cmdDone(os.Args[2:])
+		if len(doneArgs) == 0 {
+			fatalf("usage: jot done [--force] <id> [id2...]")
+		}
+		err = cmdDone(doneArgs, force)
 	case "search":
 		if len(os.Args) < 3 {
 			fatalf("usage: jot search <query>")
@@ -96,13 +108,17 @@ func main() {
 			fatalf("usage: jot append <id> <text>")
 		}
 		err = cmdAppend(os.Args[2], strings.Join(os.Args[3:], " "))
+	case "export":
+		err = cmdExport()
+	case "import":
+		err = cmdImport(os.Stdin)
 	case "clear":
 		force := len(os.Args) > 2 && os.Args[2] == "--force"
 		err = cmdClear(force)
 	case "-h", "--help", "help":
 		printUsage()
 	case "-V", "--version", "version":
-		fmt.Println("jot 0.1.0")
+		fmt.Println("jot " + appVersion())
 	default:
 		fatalf("unknown command: %s\nRun 'jot --help' for usage.", os.Args[1])
 	}
@@ -111,6 +127,16 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Error: %s\n", err)
 		os.Exit(1)
 	}
+}
+
+func appVersion() string {
+	if info, ok := debug.ReadBuildInfo(); ok {
+		v := info.Main.Version
+		if v != "" && v != "(devel)" {
+			return v
+		}
+	}
+	return "dev"
 }
 
 func stdinIsPiped() bool {
@@ -133,16 +159,19 @@ Usage: jot <command> [arguments]
 
 Commands:
   add <text>              Add a new note (or pipe text via stdin)
-  list [--tag=<tag>] [--sort=id|date|updated] [--limit=N]
+  list [--tag=<tag>] [--sort=id|date|updated] [--limit=N] [--full]
                           List notes, optionally filtered, sorted, and limited
   edit <id> <text>        Edit a note by id (or pipe new text via stdin)
   append <id> <text>      Append text to an existing note
-  done <id> [id2...]      Remove one or more notes by id
+  done [--force] <id> [id2...]
+                          Remove one or more notes by id (--force skips missing)
   search <text>           Search notes by text or tag
   view <id>               View full details of a note
   tag <id> <tag1> [...]   Add tags to a note
   untag <id> <tag>        Remove a tag from a note
   tags                    List all tags with note counts
+  export                  Print all notes as NDJSON to stdout
+  import                  Read NDJSON from stdin and append notes
   clear                   Remove all notes
 
 Options:
