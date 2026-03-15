@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"golang.org/x/term"
 )
 
 func cmdAdd(text string) error {
@@ -294,6 +296,85 @@ func stdoutIsTerminal() bool {
 		return false
 	}
 	return (fi.Mode() & os.ModeCharDevice) != 0
+}
+
+// promptPassword prints msg to stderr and reads a password from the terminal without echo.
+func promptPassword(msg string) (string, error) {
+	fmt.Fprint(os.Stderr, msg)
+	pw, err := term.ReadPassword(int(os.Stdin.Fd()))
+	fmt.Fprintln(os.Stderr) // newline after hidden input
+	if err != nil {
+		return "", err
+	}
+	return string(pw), nil
+}
+
+func cmdLock() error {
+	// If already encrypted, verify current password before changing.
+	if notesFileIsEncrypted() {
+		cur, err := promptPassword("Current password: ")
+		if err != nil {
+			return err
+		}
+		// Verify by attempting to load notes with this password.
+		activePassword = cur
+		if _, err := loadNotes(); err != nil {
+			activePassword = ""
+			return err
+		}
+	}
+
+	// Prompt for new password with confirmation.
+	pw, err := promptPassword("New password: ")
+	if err != nil {
+		return err
+	}
+	if pw == "" {
+		return fmt.Errorf("password cannot be empty")
+	}
+	confirm, err := promptPassword("Confirm password: ")
+	if err != nil {
+		return err
+	}
+	if pw != confirm {
+		return fmt.Errorf("passwords do not match")
+	}
+
+	// Load notes with current password (already set in activePassword), then re-save with new password.
+	notes, err := loadNotes()
+	if err != nil {
+		return err
+	}
+	activePassword = pw
+	if err := saveNotes(notes); err != nil {
+		return err
+	}
+	fmt.Println("Notes are now password protected.")
+	return nil
+}
+
+func cmdUnlock() error {
+	if !notesFileIsEncrypted() {
+		fmt.Println("Notes are not password protected.")
+		return nil
+	}
+	pw, err := promptPassword("Password: ")
+	if err != nil {
+		return err
+	}
+	activePassword = pw
+	notes, err := loadNotes()
+	if err != nil {
+		activePassword = ""
+		return err
+	}
+	// Save as plaintext by clearing activePassword before save.
+	activePassword = ""
+	if err := saveNotes(notes); err != nil {
+		return err
+	}
+	fmt.Println("Password protection removed.")
+	return nil
 }
 
 func highlightMatch(text, query string) string {

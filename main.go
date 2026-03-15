@@ -14,6 +14,21 @@ func main() {
 		os.Exit(1)
 	}
 
+	// If the notes file is encrypted and the command needs to read/write notes,
+	// prompt for the password once before dispatch.
+	noPromptCmds := map[string]bool{
+		"lock": true, "unlock": true,
+		"-h": true, "--help": true, "help": true,
+		"-V": true, "--version": true, "version": true,
+	}
+	if notesFileIsEncrypted() && !noPromptCmds[os.Args[1]] {
+		pw, err := promptPassword("Password: ")
+		if err != nil {
+			fatalf("cannot read password: %s", err)
+		}
+		activePassword = pw
+	}
+
 	var err error
 	switch os.Args[1] {
 	case "add":
@@ -115,6 +130,10 @@ func main() {
 	case "clear":
 		force := len(os.Args) > 2 && os.Args[2] == "--force"
 		err = cmdClear(force)
+	case "lock":
+		err = cmdLock()
+	case "unlock":
+		err = cmdUnlock()
 	case "-h", "--help", "help":
 		printUsage()
 	case "-V", "--version", "version":
@@ -173,6 +192,8 @@ Commands:
   export                  Print all notes as NDJSON to stdout
   import                  Read NDJSON from stdin and append notes
   clear                   Remove all notes
+  lock                    Set or change the notes password
+  unlock                  Remove password protection
 
 Options:
   -h, --help     Print help
