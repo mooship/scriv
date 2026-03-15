@@ -59,11 +59,14 @@ jot list
 # Limit to the 5 most recent
 jot list --limit=5
 
-# Filter by tag
+# Filter by tag (case-insensitive)
 jot list --tag=work
 
 # Sort by last-updated
 jot list --sort=updated
+
+# Show full text without truncation
+jot list --full
 
 # Edit a note
 jot edit 1 "fix the auth bug (critical)"
@@ -84,7 +87,10 @@ jot done 1 3
 # Removed [1] fix the auth bug (critical) — assigned to alice
 # Removed [3] update README
 
-# Search notes (text and tags)
+# Skip missing IDs instead of erroring (useful in scripts)
+jot done --force 1 99
+
+# Search notes (text and tags); matches are highlighted in the terminal
 jot search auth
 # [1] fix the auth bug
 # 1 matches.
@@ -116,6 +122,13 @@ jot clear
 
 # Clear without prompt
 jot clear --force
+
+# Export all notes as NDJSON
+jot export > backup.ndjson
+
+# Import notes from NDJSON (IDs are reassigned to avoid conflicts)
+jot import < backup.ndjson
+# Imported 3 notes.
 ```
 
 ## Storage
