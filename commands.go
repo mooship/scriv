@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"golang.org/x/term"
 )
 
 func cmdAdd(text string) error {
@@ -294,6 +296,79 @@ func stdoutIsTerminal() bool {
 		return false
 	}
 	return (fi.Mode() & os.ModeCharDevice) != 0
+}
+
+func promptPassword(msg string) (string, error) {
+	fmt.Fprint(os.Stderr, msg)
+	pw, err := term.ReadPassword(int(os.Stdin.Fd()))
+	fmt.Fprintln(os.Stderr)
+	if err != nil {
+		return "", err
+	}
+	return string(pw), nil
+}
+
+func cmdLock() error {
+	if notesFileIsEncrypted() {
+		cur, err := promptPassword("Current password: ")
+		if err != nil {
+			return err
+		}
+		activePassword = cur
+		if _, err := loadNotes(); err != nil {
+			activePassword = ""
+			return err
+		}
+	}
+
+	pw, err := promptPassword("New password: ")
+	if err != nil {
+		return err
+	}
+	if pw == "" {
+		return fmt.Errorf("password cannot be empty")
+	}
+	confirm, err := promptPassword("Confirm password: ")
+	if err != nil {
+		return err
+	}
+	if pw != confirm {
+		return fmt.Errorf("passwords do not match")
+	}
+
+	notes, err := loadNotes()
+	if err != nil {
+		return err
+	}
+	activePassword = pw
+	if err := saveNotes(notes); err != nil {
+		return err
+	}
+	fmt.Println("Notes are now password protected.")
+	return nil
+}
+
+func cmdUnlock() error {
+	if !notesFileIsEncrypted() {
+		fmt.Println("Notes are not password protected.")
+		return nil
+	}
+	pw, err := promptPassword("Password: ")
+	if err != nil {
+		return err
+	}
+	activePassword = pw
+	notes, err := loadNotes()
+	if err != nil {
+		activePassword = ""
+		return err
+	}
+	activePassword = ""
+	if err := saveNotes(notes); err != nil {
+		return err
+	}
+	fmt.Println("Password protection removed.")
+	return nil
 }
 
 func highlightMatch(text, query string) string {

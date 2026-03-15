@@ -3,8 +3,14 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/pbkdf2"
+	"crypto/rand"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -22,6 +28,96 @@ type Note struct {
 }
 
 var notesPathOverride string
+
+var activePassword string
+
+const encryptedMagic = "JOT\x01"
+
+const (
+	pbkdf2Iters  = 100_000
+	pbkdf2KeyLen = 32
+	saltLen      = 32
+	nonceLen     = 12
+)
+
+func encryptNotes(plaintext []byte, password string) ([]byte, error) {
+	salt := make([]byte, saltLen)
+	if _, err := io.ReadFull(rand.Reader, salt); err != nil {
+		return nil, err
+	}
+	key, err := pbkdf2.Key(sha256.New, password, salt, pbkdf2Iters, pbkdf2KeyLen)
+	if err != nil {
+		return nil, err
+	}
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, err
+	}
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, err
+	}
+	nonce := make([]byte, nonceLen)
+	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
+		return nil, err
+	}
+	ciphertext := gcm.Seal(nil, nonce, plaintext, nil)
+	out := make([]byte, 0, len(encryptedMagic)+saltLen+nonceLen+len(ciphertext))
+	out = append(out, []byte(encryptedMagic)...)
+	out = append(out, salt...)
+	out = append(out, nonce...)
+	out = append(out, ciphertext...)
+	return out, nil
+}
+
+func decryptNotes(data []byte, password string) ([]byte, error) {
+	minLen := len(encryptedMagic) + saltLen + nonceLen + 16
+	if len(data) < minLen {
+		return nil, fmt.Errorf("notes file is corrupted")
+	}
+	if string(data[:len(encryptedMagic)]) != encryptedMagic {
+		return nil, fmt.Errorf("notes file is corrupted")
+	}
+	offset := len(encryptedMagic)
+	salt := data[offset : offset+saltLen]
+	offset += saltLen
+	nonce := data[offset : offset+nonceLen]
+	offset += nonceLen
+	ciphertext := data[offset:]
+
+	key, err := pbkdf2.Key(sha256.New, password, salt, pbkdf2Iters, pbkdf2KeyLen)
+	if err != nil {
+		return nil, err
+	}
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, err
+	}
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, err
+	}
+	plaintext, err := gcm.Open(nil, nonce, ciphertext, nil)
+	if err != nil {
+		return nil, fmt.Errorf("incorrect password")
+	}
+	return plaintext, nil
+}
+
+func notesFileIsEncrypted() bool {
+	f, err := os.Open(notesPath())
+	if err != nil {
+		return false
+	}
+	defer f.Close()
+	header := make([]byte, len(encryptedMagic))
+	n, _ := f.Read(header)
+	return n == len(encryptedMagic) && string(header) == encryptedMagic
+}
+
+func isEncryptedData(data []byte) bool {
+	return len(data) >= len(encryptedMagic) && string(data[:len(encryptedMagic)]) == encryptedMagic
+}
 
 func notesPath() string {
 	if notesPathOverride != "" {
@@ -55,6 +151,12 @@ func loadNotes() ([]Note, error) {
 	}
 	if err != nil {
 		return nil, fmt.Errorf("cannot read from %s: %w", path, err)
+	}
+	if isEncryptedData(data) {
+		data, err = decryptNotes(data, activePassword)
+		if err != nil {
+			return nil, err
+		}
 	}
 	var notes []Note
 	scanner := bufio.NewScanner(bytes.NewReader(data))
@@ -93,12 +195,22 @@ func saveNotes(notes []Note) error {
 		buf.Write(line)
 		buf.WriteByte('\n')
 	}
+	var writeData []byte
+	if activePassword != "" {
+		var err error
+		writeData, err = encryptNotes(buf.Bytes(), activePassword)
+		if err != nil {
+			return fmt.Errorf("cannot encrypt notes: %w", err)
+		}
+	} else {
+		writeData = buf.Bytes()
+	}
 	tmp, err := os.CreateTemp(dir, "notes-*.json")
 	if err != nil {
 		return fmt.Errorf("cannot write to %s: %w", dir, err)
 	}
 	tmpName := tmp.Name()
-	if _, err := tmp.Write(buf.Bytes()); err != nil {
+	if _, err := tmp.Write(writeData); err != nil {
 		tmp.Close()
 		os.Remove(tmpName)
 		return fmt.Errorf("cannot write to %s: %w", tmpName, err)
