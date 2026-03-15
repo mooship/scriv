@@ -142,3 +142,7 @@ Notes are saved to a local JSON file — nothing leaves your machine.
 | Windows | `%APPDATA%\jot\notes.json` |
 
 The file is created automatically on first use.
+
+## License
+
+[GNU General Public License v3.0](LICENSE)
