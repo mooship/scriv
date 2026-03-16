@@ -169,32 +169,36 @@ func fatalf(format string, args ...any) {
 	os.Exit(1)
 }
 
-func printUsage() {
-	fmt.Print(`jot - Fast local note manager
+const usageTemplate = `jot - Fast local note manager
+
+Version: %s
 
 Usage: jot <command> [arguments]
 
 Commands:
-  add <text>              Add a new note (or pipe text via stdin)
-  list [--tag=<tag>] [--sort=id|date|updated] [--limit=N] [--full]
-                          List notes, optionally filtered, sorted, and limited
-  edit <id> <text>        Edit a note by id (or pipe new text via stdin)
-  append <id> <text>      Append text to an existing note
-  done [--force] <id> [id2...]
-                          Remove one or more notes by id (--force skips missing)
-  search <text>           Search notes by text or tag
-  view <id>               View full details of a note
-  tag <id> <tag1> [...]   Add tags to a note
-  untag <id> <tag>        Remove a tag from a note
-  tags                    List all tags with note counts
-  export                  Print all notes as NDJSON to stdout
-  import                  Read NDJSON from stdin and append notes
-  clear                   Remove all notes
-  lock                    Set or change the notes password
-  unlock                  Remove password protection
+	add <text>              Add a new note (or pipe text via stdin)
+	list [--tag=<tag>] [--sort=id|date|updated] [--limit=N] [--full]
+													List notes, optionally filtered, sorted, and limited
+	edit <id> <text>        Edit a note by id (or pipe new text via stdin)
+	append <id> <text>      Append text to an existing note
+	done [--force] <id> [id2...]
+													Remove one or more notes by id (--force skips missing)
+	search <text>           Search notes by text or tag
+	view <id>               View full details of a note
+	tag <id> <tag1> [...]   Add tags to a note
+	untag <id> <tag>        Remove a tag from a note
+	tags                    List all tags with note counts
+	export                  Print all notes as NDJSON to stdout
+	import                  Read NDJSON from stdin and append notes
+	clear                   Remove all notes
+	lock                    Set or change the notes password
+	unlock                  Remove password protection
 
 Options:
-  -h, --help     Print help
-  -V, --version  Print version
-`)
+	-h, --help     Print help
+	-V, --version  Print version
+`
+
+func printUsage() {
+	fmt.Printf(usageTemplate, appVersion())
 }
