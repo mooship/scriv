@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"runtime/debug"
 	"strconv"
 	"strings"
 )
@@ -147,13 +146,7 @@ func main() {
 }
 
 func appVersion() string {
-	if info, ok := debug.ReadBuildInfo(); ok {
-		v := info.Main.Version
-		if v != "" && v != "(devel)" {
-			return v
-		}
-	}
-	return "dev"
+	return Version
 }
 
 func stdinIsPiped() bool {
