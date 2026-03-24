@@ -3,7 +3,7 @@
 use aes_gcm::aead::{Aead, KeyInit};
 use aes_gcm::{Aes256Gcm, Nonce};
 use pbkdf2::pbkdf2_hmac;
-use rand::RngCore;
+use rand::RngExt;
 use sha2::Sha256;
 
 /// File signature for encrypted note payloads.
@@ -16,7 +16,7 @@ const NONCE_LEN: usize = 12;
 /// Encrypt NDJSON note bytes using AES-256-GCM and PBKDF2 key derivation.
 pub fn encrypt_notes(plaintext: &[u8], password: &str) -> Result<Vec<u8>, String> {
     let mut salt = [0_u8; SALT_LEN];
-    rand::thread_rng().fill_bytes(&mut salt);
+    rand::rng().fill(&mut salt);
 
     // Derive encryption key from password using PBKDF2-SHA256 with random salt
     let mut key = vec![0_u8; PBKDF2_KEY_LEN];
@@ -24,7 +24,7 @@ pub fn encrypt_notes(plaintext: &[u8], password: &str) -> Result<Vec<u8>, String
 
     let cipher = Aes256Gcm::new_from_slice(&key).map_err(|e| e.to_string())?;
     let mut nonce = [0_u8; NONCE_LEN];
-    rand::thread_rng().fill_bytes(&mut nonce);
+    rand::rng().fill(&mut nonce);
 
     let ciphertext = cipher
         .encrypt(Nonce::from_slice(&nonce), plaintext)
