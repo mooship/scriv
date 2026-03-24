@@ -7,7 +7,7 @@ use rand::RngCore;
 use sha2::Sha256;
 
 /// File signature for encrypted note payloads.
-pub const ENCRYPTED_MAGIC: &[u8; 6] = b"scriv\x01";
+pub const ENCRYPTED_MAGIC: &[u8; 6] = b"scriv\x01"; // pragma: allowlist secret
 const PBKDF2_ITERS: u32 = 100_000;
 const PBKDF2_KEY_LEN: usize = 32;
 const SALT_LEN: usize = 32;
@@ -18,7 +18,8 @@ pub fn encrypt_notes(plaintext: &[u8], password: &str) -> Result<Vec<u8>, String
     let mut salt = [0_u8; SALT_LEN];
     rand::thread_rng().fill_bytes(&mut salt);
 
-    let mut key = [0_u8; PBKDF2_KEY_LEN];
+    // Derive encryption key from password using PBKDF2-SHA256 with random salt
+    let mut key = vec![0_u8; PBKDF2_KEY_LEN];
     pbkdf2_hmac::<Sha256>(password.as_bytes(), &salt, PBKDF2_ITERS, &mut key);
 
     let cipher = Aes256Gcm::new_from_slice(&key).map_err(|e| e.to_string())?;
@@ -52,7 +53,8 @@ pub fn decrypt_notes(data: &[u8], password: &str) -> Result<Vec<u8>, String> {
     offset += NONCE_LEN;
     let ciphertext = &data[offset..];
 
-    let mut key = [0_u8; PBKDF2_KEY_LEN];
+    // Derive decryption key from password using PBKDF2-SHA256 with salt from file
+    let mut key = vec![0_u8; PBKDF2_KEY_LEN];
     pbkdf2_hmac::<Sha256>(password.as_bytes(), salt, PBKDF2_ITERS, &mut key);
 
     let cipher = Aes256Gcm::new_from_slice(&key).map_err(|e| e.to_string())?;
