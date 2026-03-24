@@ -1,4 +1,6 @@
-use jot::{decrypt_notes, encrypt_notes, is_encrypted_data, ENCRYPTED_MAGIC};
+//! Integration tests for encryption format and error handling.
+
+use jot::{ENCRYPTED_MAGIC, decrypt_notes, encrypt_notes, is_encrypted_data};
 
 #[test]
 fn encrypt_notes_writes_magic_header() {

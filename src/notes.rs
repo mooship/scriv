@@ -1,12 +1,16 @@
+//! Business operations over notes.
+
 use crate::model::{ListOptions, Note};
 use crate::storage::{load_notes, save_notes};
 use chrono::Utc;
 use std::collections::HashMap;
 
+/// Current UTC timestamp in RFC3339 format used by persisted note fields.
 fn now_timestamp() -> String {
     Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string()
 }
 
+/// Create and persist a new note with `max(existing_id) + 1` semantics.
 pub fn add_note(text: &str) -> Result<Note, String> {
     let mut notes = load_notes()?;
     let max_id = notes.iter().map(|n| n.id).max().unwrap_or(0);
@@ -22,6 +26,7 @@ pub fn add_note(text: &str) -> Result<Note, String> {
     Ok(note)
 }
 
+/// Remove a single note by id.
 pub fn remove_note(id: u64) -> Result<Note, String> {
     let mut notes = load_notes()?;
     if let Some(pos) = notes.iter().position(|n| n.id == id) {
@@ -32,6 +37,7 @@ pub fn remove_note(id: u64) -> Result<Note, String> {
     Err(format!("no note with id {}", id))
 }
 
+/// Remove multiple notes by id. In non-force mode, operation is all-or-nothing.
 pub fn remove_notes(ids: &[u64], force: bool) -> Result<Vec<Note>, String> {
     let mut notes = load_notes()?;
     let mut removed = Vec::new();
@@ -58,6 +64,7 @@ pub fn remove_notes(ids: &[u64], force: bool) -> Result<Vec<Note>, String> {
     Ok(removed)
 }
 
+/// Search notes by text or tag (case-insensitive substring match).
 pub fn search_notes(query: &str) -> Result<Vec<Note>, String> {
     let notes = load_notes()?;
     let q = query.to_lowercase();
@@ -70,6 +77,7 @@ pub fn search_notes(query: &str) -> Result<Vec<Note>, String> {
         .collect())
 }
 
+/// Replace note text and set `updated_at`.
 pub fn edit_note(id: u64, text: &str) -> Result<Note, String> {
     let mut notes = load_notes()?;
     if let Some(note) = notes.iter_mut().find(|n| n.id == id) {
@@ -82,6 +90,7 @@ pub fn edit_note(id: u64, text: &str) -> Result<Note, String> {
     Err(format!("no note with id {}", id))
 }
 
+/// Append text to a note and set `updated_at`.
 pub fn append_note(id: u64, text: &str) -> Result<Note, String> {
     let mut notes = load_notes()?;
     if let Some(note) = notes.iter_mut().find(|n| n.id == id) {
@@ -94,6 +103,7 @@ pub fn append_note(id: u64, text: &str) -> Result<Note, String> {
     Err(format!("no note with id {}", id))
 }
 
+/// Fetch one note by id.
 pub fn get_note(id: u64) -> Result<Note, String> {
     let notes = load_notes()?;
     notes
@@ -102,10 +112,12 @@ pub fn get_note(id: u64) -> Result<Note, String> {
         .ok_or_else(|| format!("no note with id {}", id))
 }
 
+/// Remove all notes.
 pub fn clear_notes() -> Result<(), String> {
     save_notes(&[])
 }
 
+/// Import notes and reassign ids to avoid conflicts.
 pub fn import_notes(mut incoming: Vec<Note>) -> Result<(), String> {
     let mut notes = load_notes()?;
     let mut max_id = notes.iter().map(|n| n.id).max().unwrap_or(0);
@@ -119,6 +131,7 @@ pub fn import_notes(mut incoming: Vec<Note>) -> Result<(), String> {
     save_notes(&notes)
 }
 
+/// Add tags to a note while preserving existing tags and deduplicating new ones.
 pub fn tag_note(id: u64, tags: &[String]) -> Result<Note, String> {
     let mut notes = load_notes()?;
     if let Some(note) = notes.iter_mut().find(|n| n.id == id) {
@@ -134,6 +147,7 @@ pub fn tag_note(id: u64, tags: &[String]) -> Result<Note, String> {
     Err(format!("no note with id {}", id))
 }
 
+/// Remove one tag from a note if present.
 pub fn untag_note(id: u64, tag: &str) -> Result<Note, String> {
     let mut notes = load_notes()?;
     if let Some(note) = notes.iter_mut().find(|n| n.id == id) {
@@ -145,6 +159,7 @@ pub fn untag_note(id: u64, tag: &str) -> Result<Note, String> {
     Err(format!("no note with id {}", id))
 }
 
+/// Build tag usage counts across a set of notes.
 pub fn collect_tags(notes: &[Note]) -> HashMap<String, usize> {
     let mut counts = HashMap::new();
     for note in notes {
@@ -155,9 +170,11 @@ pub fn collect_tags(notes: &[Note]) -> HashMap<String, usize> {
     counts
 }
 
+/// List notes with optional tag filtering, sort mode, and result limit.
 pub fn list_notes(opts: &ListOptions) -> Result<Vec<Note>, String> {
     let mut notes = load_notes()?;
 
+    // Updated-sort uses updated_at when available, otherwise falls back to created_at.
     fn updated_sort_key(note: &Note) -> &str {
         if note.updated_at.is_empty() {
             note.created_at.as_str()
@@ -181,7 +198,7 @@ pub fn list_notes(opts: &ListOptions) -> Result<Vec<Note>, String> {
             return Err(format!(
                 "unknown sort \"{}\": use id, date, or updated",
                 other
-            ))
+            ));
         }
     }
 

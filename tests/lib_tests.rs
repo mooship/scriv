@@ -1,9 +1,12 @@
+//! Integration tests for core note behavior and compatibility guarantees.
+
 use jot::*;
 use once_cell::sync::Lazy;
 use std::fs;
 use std::sync::Mutex;
 use tempfile::TempDir;
 
+// Global lock avoids cross-test interference from global path/password state.
 static TEST_LOCK: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
 
 struct TestEnv {
@@ -13,6 +16,7 @@ struct TestEnv {
 impl TestEnv {
     fn new() -> Self {
         let dir = tempfile::tempdir().expect("tempdir");
+        // Keep tests isolated from real user notes.
         set_notes_path_override(Some(dir.path().join("notes.json")));
         set_active_password(String::new());
         Self { _dir: dir }

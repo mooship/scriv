@@ -1,4 +1,6 @@
-use crate::crypto::{decrypt_notes, encrypt_notes, is_encrypted_data, ENCRYPTED_MAGIC};
+//! Notes file path resolution and persistence logic.
+
+use crate::crypto::{ENCRYPTED_MAGIC, decrypt_notes, encrypt_notes, is_encrypted_data};
 use crate::model::Note;
 use once_cell::sync::Lazy;
 use std::fs;
@@ -9,16 +11,23 @@ use std::sync::Mutex;
 static NOTES_PATH_OVERRIDE: Lazy<Mutex<Option<PathBuf>>> = Lazy::new(|| Mutex::new(None));
 static ACTIVE_PASSWORD: Lazy<Mutex<String>> = Lazy::new(|| Mutex::new(String::new()));
 
+/// Override notes path for tests and controlled environments.
 pub fn set_notes_path_override(path: Option<PathBuf>) {
-    let mut guard = NOTES_PATH_OVERRIDE.lock().expect("notes path override lock poisoned");
+    let mut guard = NOTES_PATH_OVERRIDE
+        .lock()
+        .expect("notes path override lock poisoned");
     *guard = path;
 }
 
+/// Set in-memory password used for decrypting/encrypting notes.
 pub fn set_active_password(password: String) {
-    let mut guard = ACTIVE_PASSWORD.lock().expect("active password lock poisoned");
+    let mut guard = ACTIVE_PASSWORD
+        .lock()
+        .expect("active password lock poisoned");
     *guard = password;
 }
 
+/// Get current active password value.
 pub fn active_password() -> String {
     ACTIVE_PASSWORD
         .lock()
@@ -26,6 +35,7 @@ pub fn active_password() -> String {
         .clone()
 }
 
+/// Resolve the platform-specific notes file path.
 pub fn notes_path() -> PathBuf {
     if let Some(p) = NOTES_PATH_OVERRIDE
         .lock()
@@ -35,6 +45,7 @@ pub fn notes_path() -> PathBuf {
         return p;
     }
 
+    // Follow platform conventions while preserving current app behavior.
     let data_dir = if cfg!(target_os = "windows") {
         std::env::var("APPDATA").unwrap_or_default()
     } else if cfg!(target_os = "macos") {
@@ -67,6 +78,7 @@ pub fn notes_path() -> PathBuf {
     base.join("jot").join("notes.json")
 }
 
+/// Return true when the on-disk notes file starts with the encrypted magic header.
 pub fn notes_file_is_encrypted() -> bool {
     let path = notes_path();
     let file = fs::File::open(path);
@@ -82,6 +94,7 @@ pub fn notes_file_is_encrypted() -> bool {
     }
 }
 
+/// Load notes from disk. Missing files are treated as an empty dataset.
 pub fn load_notes() -> Result<Vec<Note>, String> {
     let path = notes_path();
     let mut data = match fs::read(&path) {
@@ -103,14 +116,16 @@ pub fn load_notes() -> Result<Vec<Note>, String> {
         if trimmed.is_empty() {
             continue;
         }
-        let note: Note = serde_json::from_str(trimmed)
-            .map_err(|_| "notes file is corrupted. Run 'jot clear --force' to reset.".to_string())?;
+        let note: Note = serde_json::from_str(trimmed).map_err(|_| {
+            "notes file is corrupted. Run 'jot clear --force' to reset.".to_string()
+        })?;
         notes.push(note);
     }
 
     Ok(notes)
 }
 
+/// Persist notes to disk using atomic replacement.
 pub fn save_notes(notes: &[Note]) -> Result<(), String> {
     let path = notes_path();
     let dir = path
@@ -130,9 +145,11 @@ pub fn save_notes(notes: &[Note]) -> Result<(), String> {
     let payload = if active_password().is_empty() {
         ndjson
     } else {
-        encrypt_notes(&ndjson, &active_password()).map_err(|e| format!("cannot encrypt notes: {}", e))?
+        encrypt_notes(&ndjson, &active_password())
+            .map_err(|e| format!("cannot encrypt notes: {}", e))?
     };
 
+    // Write to a temp file first, then persist atomically to reduce corruption risk.
     let mut tmp = tempfile::NamedTempFile::new_in(&dir)
         .map_err(|e| format!("cannot write to {}: {}", dir.display(), e))?;
     tmp.write_all(&payload)
