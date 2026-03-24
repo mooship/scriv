@@ -328,22 +328,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
 
 [[package]]
-name = "jot"
-version = "1.0.0"
-dependencies = [
- "aes-gcm",
- "chrono",
- "once_cell",
- "pbkdf2",
- "rand",
- "rpassword",
- "serde",
- "serde_json",
- "sha2",
- "tempfile",
-]
-
-[[package]]
 name = "js-sys"
 version = "0.3.91"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -538,6 +522,22 @@ name = "rustversion"
 version = "1.0.22"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b39cdef0fa800fc44525c84ccb54a029961a8215f9619753635a9c0d2538d46d"
+
+[[package]]
+name = "scriv"
+version = "1.0.0"
+dependencies = [
+ "aes-gcm",
+ "chrono",
+ "once_cell",
+ "pbkdf2",
+ "rand",
+ "rpassword",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
+]
 
 [[package]]
 name = "semver"

@@ -75,7 +75,7 @@ pub fn notes_path() -> PathBuf {
         PathBuf::from(data_dir)
     };
 
-    base.join("jot").join("notes.json")
+    base.join("scriv").join("notes.json")
 }
 
 /// Return true when the on-disk notes file starts with the encrypted magic header.
@@ -117,7 +117,7 @@ pub fn load_notes() -> Result<Vec<Note>, String> {
             continue;
         }
         let note: Note = serde_json::from_str(trimmed).map_err(|_| {
-            "notes file is corrupted. Run 'jot clear --force' to reset.".to_string()
+            "notes file is corrupted. Run 'scriv clear --force' to reset.".to_string()
         })?;
         notes.push(note);
     }

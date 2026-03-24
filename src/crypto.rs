@@ -7,7 +7,7 @@ use rand::RngCore;
 use sha2::Sha256;
 
 /// File signature for encrypted note payloads.
-pub const ENCRYPTED_MAGIC: &[u8; 4] = b"JOT\x01";
+pub const ENCRYPTED_MAGIC: &[u8; 6] = b"scriv\x01";
 const PBKDF2_ITERS: u32 = 100_000;
 const PBKDF2_KEY_LEN: usize = 32;
 const SALT_LEN: usize = 32;

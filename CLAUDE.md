@@ -14,7 +14,7 @@ cargo clippy -- -D warnings   # lint
 
 ## Architecture
 
-`jot` is a Rust CLI crate with binary + library split:
+`scriv` is a Rust CLI crate with binary + library split:
 
 - **`src/main.rs`** - CLI entry point, command parsing, terminal I/O, and command dispatch
 - **`src/lib.rs`** - crate API and re-exports

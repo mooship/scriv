@@ -1,4 +1,4 @@
-//! Public crate surface for jot.
+//! Public crate surface for scriv.
 //! Modules stay internal and are re-exported here to keep the external API stable.
 
 mod crypto;

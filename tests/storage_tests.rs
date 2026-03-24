@@ -1,6 +1,6 @@
 //! Integration tests for persistence and encrypted/plain file handling.
 
-use jot::{
+use scriv::{
     Note, is_encrypted_data, load_notes, notes_file_is_encrypted, notes_path, save_notes,
     set_active_password, set_notes_path_override,
 };
@@ -125,7 +125,7 @@ fn load_notes_corrupted_ndjson_returns_compat_error() {
     let err = load_notes().expect_err("expected corrupted-file error");
     assert_eq!(
         err,
-        "notes file is corrupted. Run 'jot clear --force' to reset."
+        "notes file is corrupted. Run 'scriv clear --force' to reset."
     );
 }
 

@@ -1,6 +1,6 @@
 //! Integration tests for core note behavior and compatibility guarantees.
 
-use jot::*;
+use scriv::*;
 use once_cell::sync::Lazy;
 use std::fs;
 use std::sync::Mutex;
