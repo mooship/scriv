@@ -1,42 +1,45 @@
 # jot
 
-Fast, local CLI note manager. Notes are stored as plain JSON on disk. No daemon, no sync, no accounts.
+Fast, local CLI note manager. Notes are stored as local NDJSON (or encrypted with a password). No daemon, no sync, no accounts.
 
 ## Install
 
+Prerequisite: install Rust via rustup.
+
 ```sh
-go install github.com/mooship/jot@latest
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 ```
 
-This builds the binary and places it in `$GOPATH/bin` (usually `~/go/bin`).
+Install from crates.io:
 
-Make sure that directory is on your PATH:
-
-**Linux / WSL** — add to `~/.bashrc` or `~/.zshrc`:
 ```sh
-export PATH="$PATH:$(go env GOPATH)/bin"
+cargo install jot
 ```
-Then run `source ~/.bashrc`.
 
-**macOS** — add to `~/.zshrc` (or `~/.bash_profile` if using bash):
+Install from this repository (no local clone required):
+
 ```sh
-export PATH="$PATH:$(go env GOPATH)/bin"
+cargo install --git https://github.com/mooship/jot
 ```
-Then run `source ~/.zshrc`.
 
-**Windows** — run this in PowerShell (once):
-```powershell
-$gobin = "$(go env GOPATH)\bin"
-[Environment]::SetEnvironmentVariable("PATH", $env:PATH + ";$gobin", "User")
-```
-Then restart your terminal.
-
-### Build from source
+Or clone and install locally:
 
 ```sh
 git clone https://github.com/mooship/jot
 cd jot
-go install .
+cargo install --path .
+```
+
+`cargo install` places `jot` in Cargo's bin directory (`$HOME/.cargo/bin` on Unix, `%USERPROFILE%\.cargo\bin` on Windows). Make sure that path is on your `PATH`.
+
+### crates.io
+
+Crate page: https://crates.io/crates/jot
+
+### Build from source
+
+```sh
+cargo build --release
 ```
 
 ## Usage
@@ -133,7 +136,7 @@ jot import < backup.ndjson
 
 ## Storage
 
-Notes are saved to a local JSON file — nothing leaves your machine.
+Notes are saved to a local NDJSON file (or encrypted bytes when locked) - nothing leaves your machine.
 
 | Platform | Path |
 |---|---|
