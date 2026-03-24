@@ -125,13 +125,13 @@ fn cmd_view(id_str: &str) -> Result<(), String> {
             created.with_timezone(&Utc).format("%Y-%m-%d")
         );
     }
-    if !note.updated_at.is_empty() {
-        if let Ok(updated) = DateTime::parse_from_rfc3339(&note.updated_at) {
-            println!(
-                "    Updated: {}",
-                updated.with_timezone(&Utc).format("%Y-%m-%d")
-            );
-        }
+    if !note.updated_at.is_empty()
+        && let Ok(updated) = DateTime::parse_from_rfc3339(&note.updated_at)
+    {
+        println!(
+            "    Updated: {}",
+            updated.with_timezone(&Utc).format("%Y-%m-%d")
+        );
     }
     if !note.tags.is_empty() {
         println!("    Tags: #{}", note.tags.join(" #"));
