@@ -1,6 +1,6 @@
 //! Integration tests for encryption format and error handling.
 
-use jot::{ENCRYPTED_MAGIC, decrypt_notes, encrypt_notes, is_encrypted_data};
+use scriv::{ENCRYPTED_MAGIC, decrypt_notes, encrypt_notes, is_encrypted_data};
 
 #[test]
 fn encrypt_notes_writes_magic_header() {
@@ -25,7 +25,7 @@ fn decrypt_with_wrong_password_fails() {
 
 #[test]
 fn decrypt_rejects_truncated_data() {
-    let err = decrypt_notes(b"JOT\x01short", "pw").expect_err("expected truncated error");
+    let err = decrypt_notes(b"scriv\x01short", "pw").expect_err("expected truncated error");
     assert_eq!(err, "notes file is corrupted");
 }
 

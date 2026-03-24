@@ -1,7 +1,7 @@
 //! CLI entrypoint and command wiring.
 
 use chrono::{DateTime, Utc};
-use jot::{
+use scriv::{
     ListOptions, Note, active_password, add_note, append_note, clear_notes, collect_tags,
     edit_note, get_note, highlight_match, import_notes, list_notes, load_notes, note_age,
     notes_file_is_encrypted, read_stdin_text, remove_notes, search_notes, set_active_password,
@@ -11,11 +11,11 @@ use std::collections::BTreeMap;
 use std::env;
 use std::io::{self, BufRead, Read, Write};
 
-const USAGE_TEMPLATE: &str = "jot - Fast local note manager
+const USAGE_TEMPLATE: &str = "scriv - Fast local note manager
 
 Version: {version}
 
-Usage: jot <command> [arguments]
+Usage: scriv <command> [arguments]
 
 Commands:
     add <text>              Add a new note (or pipe text via stdin)
@@ -315,7 +315,7 @@ fn cmd_lock() -> Result<(), String> {
 
     let notes = load_notes()?;
     set_active_password(pw);
-    jot::save_notes(&notes)?;
+    scriv::save_notes(&notes)?;
     println!("Notes are now password protected.");
     Ok(())
 }
@@ -336,7 +336,7 @@ fn cmd_unlock() -> Result<(), String> {
         }
     };
     set_active_password(String::new());
-    jot::save_notes(&notes)?;
+    scriv::save_notes(&notes)?;
     println!("Password protection removed.");
     Ok(())
 }
@@ -376,7 +376,7 @@ fn main() {
                 cmd_add(read_stdin_text(io::stdin()).unwrap_or_else(|e| fatal(&e)))
             } else {
                 if args.len() < 3 {
-                    fatal("usage: jot add <text>");
+                    fatal("usage: scriv add <text>");
                 }
                 cmd_add(args[2..].join(" "))
             }
@@ -404,7 +404,7 @@ fn main() {
         }
         "edit" => {
             if args.len() < 3 {
-                fatal("usage: jot edit <id> <text>");
+                fatal("usage: scriv edit <id> <text>");
             }
 
             if stdin_is_piped() {
@@ -414,7 +414,7 @@ fn main() {
                 )
             } else {
                 if args.len() < 4 {
-                    fatal("usage: jot edit <id> <text>");
+                    fatal("usage: scriv edit <id> <text>");
                 }
                 cmd_edit(&args[2], args[3..].join(" "))
             }
@@ -430,38 +430,38 @@ fn main() {
                 }
             }
             if id_args.is_empty() {
-                fatal("usage: jot done [--force] <id> [id2...]");
+                fatal("usage: scriv done [--force] <id> [id2...]");
             }
             cmd_done(&id_args, force)
         }
         "search" => {
             if args.len() < 3 {
-                fatal("usage: jot search <query>");
+                fatal("usage: scriv search <query>");
             }
             cmd_search(&args[2..].join(" "))
         }
         "view" => {
             if args.len() < 3 {
-                fatal("usage: jot view <id>");
+                fatal("usage: scriv view <id>");
             }
             cmd_view(&args[2])
         }
         "tag" => {
             if args.len() < 4 {
-                fatal("usage: jot tag <id> <tag1> [tag2...]");
+                fatal("usage: scriv tag <id> <tag1> [tag2...]");
             }
             cmd_tag(&args[2], &args[3..])
         }
         "untag" => {
             if args.len() < 4 {
-                fatal("usage: jot untag <id> <tag>");
+                fatal("usage: scriv untag <id> <tag>");
             }
             cmd_untag(&args[2], &args[3])
         }
         "tags" => cmd_tags(),
         "append" => {
             if args.len() < 4 {
-                fatal("usage: jot append <id> <text>");
+                fatal("usage: scriv append <id> <text>");
             }
             cmd_append(&args[2], args[3..].join(" "))
         }
@@ -478,11 +478,11 @@ fn main() {
             Ok(())
         }
         "-V" | "--version" | "version" => {
-            println!("jot {}", app_version());
+            println!("scriv {}", app_version());
             Ok(())
         }
         _ => fatal(&format!(
-            "unknown command: {}\nRun 'jot --help' for usage.",
+            "unknown command: {}\nRun 'scriv --help' for usage.",
             cmd
         )),
     };
