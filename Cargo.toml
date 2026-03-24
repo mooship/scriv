@@ -2,6 +2,14 @@
 name = "jot"
 version = "1.0.0"
 edition = "2024"
+description = "Fast local CLI note manager with optional password encryption"
+readme = "README.md"
+license = "GPL-3.0-only"
+repository = "https://github.com/mooship/jot"
+homepage = "https://github.com/mooship/jot"
+documentation = "https://docs.rs/jot"
+keywords = ["notes", "cli", "productivity", "local"]
+categories = ["command-line-utilities"]
 
 [dependencies]
 aes-gcm = "0.10"

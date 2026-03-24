@@ -1,8 +1,11 @@
+//! CLI entrypoint and command wiring.
+
 use chrono::{DateTime, Utc};
 use jot::{
-    active_password, add_note, append_note, clear_notes, collect_tags, edit_note, get_note, highlight_match,
-    import_notes, list_notes, load_notes, note_age, notes_file_is_encrypted, read_stdin_text, remove_notes,
-    search_notes, set_active_password, tag_note, untag_note, ListOptions, Note,
+    ListOptions, Note, active_password, add_note, append_note, clear_notes, collect_tags,
+    edit_note, get_note, highlight_match, import_notes, list_notes, load_notes, note_age,
+    notes_file_is_encrypted, read_stdin_text, remove_notes, search_notes, set_active_password,
+    tag_note, untag_note,
 };
 use std::collections::BTreeMap;
 use std::env;
@@ -38,19 +41,23 @@ Options:
     -V, --version  Print version
 ";
 
+/// Return crate version embedded at compile time.
 fn app_version() -> &'static str {
     env!("CARGO_PKG_VERSION")
 }
 
+/// Print consistent CLI help text.
 fn print_usage() {
     println!("{}", USAGE_TEMPLATE.replace("{version}", app_version()));
 }
 
+/// Print an error and exit with status 1.
 fn fatal(msg: &str) -> ! {
     eprintln!("Error: {}", msg);
     std::process::exit(1);
 }
 
+/// Parse a required positive note id.
 fn parse_id(s: &str) -> Result<u64, String> {
     let id = s
         .parse::<u64>()
@@ -61,14 +68,17 @@ fn parse_id(s: &str) -> Result<u64, String> {
     Ok(id)
 }
 
+/// True when stdin is piped rather than interactive.
 fn stdin_is_piped() -> bool {
     !std::io::IsTerminal::is_terminal(&io::stdin())
 }
 
+/// True when stdout is attached to a terminal.
 fn stdout_is_terminal() -> bool {
     std::io::IsTerminal::is_terminal(&io::stdout())
 }
 
+/// Prompt for a password without echoing input.
 fn prompt_password(msg: &str) -> Result<String, String> {
     eprint!("{}", msg);
     rpassword::read_password().map_err(|e| e.to_string())
@@ -110,11 +120,17 @@ fn cmd_view(id_str: &str) -> Result<(), String> {
     println!("[{}] {}", note.id, note.text);
 
     if let Ok(created) = DateTime::parse_from_rfc3339(&note.created_at) {
-        println!("    Created: {}", created.with_timezone(&Utc).format("%Y-%m-%d"));
+        println!(
+            "    Created: {}",
+            created.with_timezone(&Utc).format("%Y-%m-%d")
+        );
     }
     if !note.updated_at.is_empty() {
         if let Ok(updated) = DateTime::parse_from_rfc3339(&note.updated_at) {
-            println!("    Updated: {}", updated.with_timezone(&Utc).format("%Y-%m-%d"));
+            println!(
+                "    Updated: {}",
+                updated.with_timezone(&Utc).format("%Y-%m-%d")
+            );
         }
     }
     if !note.tags.is_empty() {
@@ -154,7 +170,12 @@ fn cmd_edit(id_str: &str, text: String) -> Result<(), String> {
 fn cmd_tag(id_str: &str, tags: &[String]) -> Result<(), String> {
     let id = parse_id(id_str)?;
     let note = tag_note(id, tags)?;
-    println!("Tagged [{}] {}: #{}", note.id, note.text, note.tags.join(" #"));
+    println!(
+        "Tagged [{}] {}: #{}",
+        note.id,
+        note.text,
+        note.tags.join(" #")
+    );
     Ok(())
 }
 
@@ -203,7 +224,9 @@ fn cmd_clear(force: bool) -> Result<(), String> {
         print!("Remove all {} notes? [y/N] ", notes.len());
         io::stdout().flush().map_err(|e| e.to_string())?;
         let mut line = String::new();
-        io::stdin().read_line(&mut line).map_err(|e| e.to_string())?;
+        io::stdin()
+            .read_line(&mut line)
+            .map_err(|e| e.to_string())?;
         if line.trim().to_lowercase() != "y" {
             return Ok(());
         }
@@ -237,7 +260,10 @@ fn cmd_search(query: &str) -> Result<(), String> {
 fn cmd_export() -> Result<(), String> {
     let notes = load_notes()?;
     for note in notes {
-        println!("{}", serde_json::to_string(&note).map_err(|e| e.to_string())?);
+        println!(
+            "{}",
+            serde_json::to_string(&note).map_err(|e| e.to_string())?
+        );
     }
     Ok(())
 }
@@ -315,6 +341,7 @@ fn cmd_unlock() -> Result<(), String> {
     Ok(())
 }
 
+/// Parse args, dispatch commands, and normalize user-facing errors.
 fn main() {
     let args: Vec<String> = env::args().collect();
     if args.len() < 2 {
@@ -323,8 +350,16 @@ fn main() {
     }
 
     let cmd = args[1].clone();
+    // Commands that should not trigger the pre-command password prompt.
     let no_prompt = [
-        "lock", "unlock", "-h", "--help", "help", "-V", "--version", "version",
+        "lock",
+        "unlock",
+        "-h",
+        "--help",
+        "help",
+        "-V",
+        "--version",
+        "version",
     ]
     .contains(&cmd.as_str());
 
@@ -373,7 +408,10 @@ fn main() {
             }
 
             if stdin_is_piped() {
-                cmd_edit(&args[2], read_stdin_text(io::stdin()).unwrap_or_else(|e| fatal(&e)))
+                cmd_edit(
+                    &args[2],
+                    read_stdin_text(io::stdin()).unwrap_or_else(|e| fatal(&e)),
+                )
             } else {
                 if args.len() < 4 {
                     fatal("usage: jot edit <id> <text>");
@@ -443,7 +481,10 @@ fn main() {
             println!("jot {}", app_version());
             Ok(())
         }
-        _ => fatal(&format!("unknown command: {}\nRun 'jot --help' for usage.", cmd)),
+        _ => fatal(&format!(
+            "unknown command: {}\nRun 'jot --help' for usage.",
+            cmd
+        )),
     };
 
     if let Err(err) = result {

@@ -1,6 +1,9 @@
+//! Formatting helpers shared by CLI commands.
+
 use chrono::{DateTime, Utc};
 use std::io::{BufRead, BufReader, Read};
 
+/// Read piped stdin as trimmed multi-line text.
 pub fn read_stdin_text<R: Read>(reader: R) -> Result<String, String> {
     let mut out = String::new();
     let mut br = BufReader::new(reader);
@@ -23,6 +26,7 @@ pub fn read_stdin_text<R: Read>(reader: R) -> Result<String, String> {
     Ok(trimmed)
 }
 
+/// Convert an RFC3339 UTC timestamp into a compact relative-age label.
 pub fn note_age(ts: &str) -> String {
     let parsed = DateTime::parse_from_rfc3339(ts);
     let t = match parsed {
@@ -47,6 +51,7 @@ pub fn note_age(ts: &str) -> String {
     }
 }
 
+/// ANSI-highlight all case-insensitive matches of `query` inside `text`.
 pub fn highlight_match(text: &str, query: &str) -> String {
     if query.is_empty() {
         return text.to_string();

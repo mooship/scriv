@@ -1,15 +1,19 @@
+//! Encryption helpers for notes-at-rest support.
+
 use aes_gcm::aead::{Aead, KeyInit};
 use aes_gcm::{Aes256Gcm, Nonce};
 use pbkdf2::pbkdf2_hmac;
 use rand::RngCore;
 use sha2::Sha256;
 
+/// File signature for encrypted note payloads.
 pub const ENCRYPTED_MAGIC: &[u8; 4] = b"JOT\x01";
 const PBKDF2_ITERS: u32 = 100_000;
 const PBKDF2_KEY_LEN: usize = 32;
 const SALT_LEN: usize = 32;
 const NONCE_LEN: usize = 12;
 
+/// Encrypt NDJSON note bytes using AES-256-GCM and PBKDF2 key derivation.
 pub fn encrypt_notes(plaintext: &[u8], password: &str) -> Result<Vec<u8>, String> {
     let mut salt = [0_u8; SALT_LEN];
     rand::thread_rng().fill_bytes(&mut salt);
@@ -25,7 +29,8 @@ pub fn encrypt_notes(plaintext: &[u8], password: &str) -> Result<Vec<u8>, String
         .encrypt(Nonce::from_slice(&nonce), plaintext)
         .map_err(|e| e.to_string())?;
 
-    let mut out = Vec::with_capacity(ENCRYPTED_MAGIC.len() + SALT_LEN + NONCE_LEN + ciphertext.len());
+    let mut out =
+        Vec::with_capacity(ENCRYPTED_MAGIC.len() + SALT_LEN + NONCE_LEN + ciphertext.len());
     out.extend_from_slice(ENCRYPTED_MAGIC);
     out.extend_from_slice(&salt);
     out.extend_from_slice(&nonce);
@@ -33,6 +38,7 @@ pub fn encrypt_notes(plaintext: &[u8], password: &str) -> Result<Vec<u8>, String
     Ok(out)
 }
 
+/// Decrypt note bytes previously produced by `encrypt_notes`.
 pub fn decrypt_notes(data: &[u8], password: &str) -> Result<Vec<u8>, String> {
     let min_len = ENCRYPTED_MAGIC.len() + SALT_LEN + NONCE_LEN + 16;
     if data.len() < min_len || &data[0..ENCRYPTED_MAGIC.len()] != ENCRYPTED_MAGIC {
@@ -55,6 +61,7 @@ pub fn decrypt_notes(data: &[u8], password: &str) -> Result<Vec<u8>, String> {
         .map_err(|_| "incorrect password".to_string())
 }
 
+/// Quick header check used to detect encrypted files.
 pub fn is_encrypted_data(data: &[u8]) -> bool {
     data.len() >= ENCRYPTED_MAGIC.len() && &data[0..ENCRYPTED_MAGIC.len()] == ENCRYPTED_MAGIC
 }
