@@ -5,31 +5,35 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```sh
-go build .          # build binary
-go install .        # build and install to $GOPATH/bin
-go test ./...       # run all tests
-go test -run TestAddNote_AssignsID1WhenEmpty  # run a single test
-go vet ./...        # lint
+cargo build         # build binary
+cargo install --path .  # build and install to Cargo bin dir
+cargo test          # run all tests
+cargo test add_note_assigns_id_1_when_empty  # run a single test
+cargo clippy -- -D warnings   # lint
 ```
 
 ## Architecture
 
-`jot` is a single-package CLI (`package main`) with no external dependencies. Three files divide responsibilities:
+`jot` is a Rust CLI crate with binary + library split:
 
-- **`main.go`** — entry point, command dispatch via `os.Args` switch
-- **`commands.go`** — `cmd*` functions that handle CLI I/O (print output, prompt user)
-- **`notes.go`** — pure data layer: `Note` struct, `loadNotes`/`saveNotes`, and business logic (`addNote`, `removeNote`, `searchNotes`, `clearNotes`)
+- **`src/main.rs`** - CLI entry point, command parsing, terminal I/O, and command dispatch
+- **`src/lib.rs`** - crate API and re-exports
+- **`src/model.rs`** - `Note` and `ListOptions`
+- **`src/storage.rs`** - notes path resolution, persistence, active password state
+- **`src/crypto.rs`** - encryption/decryption helpers
+- **`src/notes.rs`** - core note operations (`add_note`, `remove_notes`, `search_notes`, `clear_notes`, etc.)
+- **`src/format.rs`** - display/search helpers (`note_age`, `highlight_match`, `read_stdin_text`)
 
-The `commands.go` functions call into `notes.go` functions. The data layer has no knowledge of CLI output.
+`src/main.rs` calls into `src/lib.rs`. Keep terminal concerns in the binary and core logic in the library.
 
 ### Storage
 
-Notes persist as JSON at a platform-specific path resolved by `notesPath()` in `notes.go`. Tests override this via the package-level `notesPathOverride` variable — set it in test setup via `setupTempFile(t)` to isolate tests from the real notes file.
+Notes persist as NDJSON at a platform-specific path resolved by `notes_path()` in `src/storage.rs` (re-exported by `src/lib.rs`). Tests override this via `set_notes_path_override(...)` to isolate tests from real user notes.
 
 ### ID assignment
 
-IDs are not sequential integers from a counter — new notes get `max(existing IDs) + 1`. IDs are stable after deletion (gaps are preserved).
+IDs are not sequential integers from a counter - new notes get `max(existing IDs) + 1`. IDs are stable after deletion (gaps are preserved).
 
 ### Backwards compatibility
 
-`notes.json` is user data that persists across app versions. Never rename or remove existing JSON keys on the `Note` struct. New optional fields must use `omitempty`. The `notes_compat_test.go` file pins the current schema — all fixtures there must continue to load correctly.
+`notes.json` is user data that persists across app versions. Never rename or remove existing JSON keys on `Note` (`id`, `text`, `created_at`, `updated_at`, `tags`). New optional fields must use serde defaults/skip-serialization behavior to preserve compatibility.
