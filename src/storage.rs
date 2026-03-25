@@ -45,7 +45,6 @@ pub fn notes_path() -> PathBuf {
         return p;
     }
 
-    // Follow platform conventions while preserving current app behavior.
     let data_dir = if cfg!(target_os = "windows") {
         std::env::var("APPDATA").unwrap_or_default()
     } else if cfg!(target_os = "macos") {

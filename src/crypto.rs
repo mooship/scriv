@@ -18,7 +18,6 @@ pub fn encrypt_notes(plaintext: &[u8], password: &str) -> Result<Vec<u8>, String
     let mut salt = [0_u8; SALT_LEN];
     rand::rng().fill(&mut salt);
 
-    // Derive encryption key from password using PBKDF2-SHA256 with random salt
     let mut key = vec![0_u8; PBKDF2_KEY_LEN];
     pbkdf2_hmac::<Sha256>(password.as_bytes(), &salt, PBKDF2_ITERS, &mut key);
 
@@ -53,7 +52,6 @@ pub fn decrypt_notes(data: &[u8], password: &str) -> Result<Vec<u8>, String> {
     offset += NONCE_LEN;
     let ciphertext = &data[offset..];
 
-    // Derive decryption key from password using PBKDF2-SHA256 with salt from file
     let mut key = vec![0_u8; PBKDF2_KEY_LEN];
     pbkdf2_hmac::<Sha256>(password.as_bytes(), salt, PBKDF2_ITERS, &mut key);
 

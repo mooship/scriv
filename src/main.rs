@@ -141,16 +141,10 @@ fn cmd_view(id_str: &str) -> Result<(), String> {
 }
 
 fn cmd_done(id_strs: &[String], force: bool) -> Result<(), String> {
-    let mut ids = Vec::new();
-    for s in id_strs {
-        let id = s
-            .parse::<u64>()
-            .map_err(|_| format!("id must be a positive integer: {}", s))?;
-        if id == 0 {
-            return Err(format!("id must be a positive integer: {}", s));
-        }
-        ids.push(id);
-    }
+    let ids = id_strs
+        .iter()
+        .map(|s| parse_id(s))
+        .collect::<Result<Vec<_>, _>>()?;
 
     let removed = remove_notes(&ids, force)?;
     for note in removed {
@@ -194,11 +188,7 @@ fn cmd_tags() -> Result<(), String> {
         return Ok(());
     }
 
-    let mut sorted: BTreeMap<String, usize> = BTreeMap::new();
-    for (k, v) in counts {
-        sorted.insert(k, v);
-    }
-
+    let sorted: BTreeMap<String, usize> = counts.into_iter().collect();
     for (tag, count) in sorted {
         println!("{:<20} {}", tag, count);
     }
@@ -295,14 +285,19 @@ fn cmd_import<R: Read>(reader: R) -> Result<(), String> {
 }
 
 fn cmd_lock() -> Result<(), String> {
-    if notes_file_is_encrypted() {
+    let notes = if notes_file_is_encrypted() {
         let current = prompt_password("Current password: ")?;
         set_active_password(current);
-        if let Err(e) = load_notes() {
-            set_active_password(String::new());
-            return Err(e);
+        match load_notes() {
+            Ok(v) => v,
+            Err(e) => {
+                set_active_password(String::new());
+                return Err(e);
+            }
         }
-    }
+    } else {
+        load_notes()?
+    };
 
     let pw = prompt_password("New password: ")?;
     if pw.is_empty() {
@@ -313,7 +308,6 @@ fn cmd_lock() -> Result<(), String> {
         return Err("passwords do not match".to_string());
     }
 
-    let notes = load_notes()?;
     set_active_password(pw);
     scriv::save_notes(&notes)?;
     println!("Notes are now password protected.");

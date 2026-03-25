@@ -1,7 +1,7 @@
 //! Integration tests for core note behavior and compatibility guarantees.
 
-use scriv::*;
 use once_cell::sync::Lazy;
+use scriv::*;
 use std::fs;
 use std::sync::Mutex;
 use tempfile::TempDir;
