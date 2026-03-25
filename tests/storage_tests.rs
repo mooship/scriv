@@ -1,10 +1,10 @@
 //! Integration tests for persistence and encrypted/plain file handling.
 
+use once_cell::sync::Lazy;
 use scriv::{
     Note, is_encrypted_data, load_notes, notes_file_is_encrypted, notes_path, save_notes,
     set_active_password, set_notes_path_override,
 };
-use once_cell::sync::Lazy;
 use std::fs;
 use std::sync::Mutex;
 use tempfile::TempDir;
