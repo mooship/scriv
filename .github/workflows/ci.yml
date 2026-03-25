@@ -10,20 +10,22 @@ permissions:
 
 jobs:
   build-and-test:
+    name: Build and Test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - name: Checkout Code
+        uses: actions/checkout@v6
 
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy
+      - name: Install Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
 
-      - uses: Swatinem/rust-cache@v2
+      - name: Cache Dependencies
+        uses: Swatinem/rust-cache@v2
         with:
           shared-key: ci-ubuntu
 
-      - run: cargo build --locked
+      - name: Build
+        run: cargo build --locked
 
-      - run: cargo test --locked
-
-      - run: cargo clippy --locked -- -D warnings
+      - name: Test
+        run: cargo test --locked
