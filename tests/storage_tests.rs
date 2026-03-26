@@ -1,41 +1,16 @@
 //! Integration tests for persistence and encrypted/plain file handling.
 
-use once_cell::sync::Lazy;
+mod common;
+use common::{TestEnv, lock_test};
 use scriv::{
     Note, is_encrypted_data, load_notes, notes_file_is_encrypted, notes_path, save_notes,
-    set_active_password, set_notes_path_override,
+    set_active_password,
 };
 use std::fs;
-use std::sync::Mutex;
-use tempfile::TempDir;
-
-// Global lock avoids cross-test interference from global path/password state.
-static TEST_LOCK: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
-
-struct TestEnv {
-    _dir: TempDir,
-}
-
-impl TestEnv {
-    fn new() -> Self {
-        let dir = tempfile::tempdir().expect("tempdir");
-        // Keep tests isolated from real user notes.
-        set_notes_path_override(Some(dir.path().join("notes.json")));
-        set_active_password(String::new());
-        Self { _dir: dir }
-    }
-}
-
-impl Drop for TestEnv {
-    fn drop(&mut self) {
-        set_notes_path_override(None);
-        set_active_password(String::new());
-    }
-}
 
 #[test]
 fn load_notes_missing_file_returns_empty() {
-    let _guard = TEST_LOCK.lock().expect("test lock");
+    let _guard = lock_test();
     let _env = TestEnv::new();
 
     let notes = load_notes().expect("load notes");
@@ -44,7 +19,7 @@ fn load_notes_missing_file_returns_empty() {
 
 #[test]
 fn save_and_load_plain_notes() {
-    let _guard = TEST_LOCK.lock().expect("test lock");
+    let _guard = lock_test();
     let _env = TestEnv::new();
 
     let notes = vec![Note {
@@ -65,7 +40,7 @@ fn save_and_load_plain_notes() {
 
 #[test]
 fn save_and_load_encrypted_notes() {
-    let _guard = TEST_LOCK.lock().expect("test lock");
+    let _guard = lock_test();
     let _env = TestEnv::new();
 
     set_active_password("secret".to_string());
@@ -88,7 +63,7 @@ fn save_and_load_encrypted_notes() {
 
 #[test]
 fn notes_file_is_encrypted_reflects_current_file_state() {
-    let _guard = TEST_LOCK.lock().expect("test lock");
+    let _guard = lock_test();
     let _env = TestEnv::new();
 
     assert!(!notes_file_is_encrypted());
@@ -117,7 +92,7 @@ fn notes_file_is_encrypted_reflects_current_file_state() {
 
 #[test]
 fn load_notes_corrupted_ndjson_returns_compat_error() {
-    let _guard = TEST_LOCK.lock().expect("test lock");
+    let _guard = lock_test();
     let _env = TestEnv::new();
 
     fs::write(notes_path(), "not json").expect("write corrupted file");
@@ -131,7 +106,7 @@ fn load_notes_corrupted_ndjson_returns_compat_error() {
 
 #[test]
 fn load_notes_with_wrong_password_fails() {
-    let _guard = TEST_LOCK.lock().expect("test lock");
+    let _guard = lock_test();
     let _env = TestEnv::new();
 
     set_active_password("correct".to_string());
