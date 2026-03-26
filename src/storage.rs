@@ -124,7 +124,7 @@ pub fn load_notes() -> Result<Vec<Note>, String> {
     Ok(notes)
 }
 
-/// Persist notes to disk using atomic replacement.
+/// Persist notes to disk using atomic replacement via a temporary file to reduce corruption risk.
 pub fn save_notes(notes: &[Note]) -> Result<(), String> {
     let path = notes_path();
     let dir = path
@@ -148,7 +148,6 @@ pub fn save_notes(notes: &[Note]) -> Result<(), String> {
             .map_err(|e| format!("cannot encrypt notes: {}", e))?
     };
 
-    // Write to a temp file first, then persist atomically to reduce corruption risk.
     let mut tmp = tempfile::NamedTempFile::new_in(&dir)
         .map_err(|e| format!("cannot write to {}: {}", dir.display(), e))?;
     tmp.write_all(&payload)

@@ -344,7 +344,6 @@ fn main() {
     }
 
     let cmd = args[1].clone();
-    // Commands that should not trigger the pre-command password prompt.
     let no_prompt = [
         "lock",
         "unlock",
