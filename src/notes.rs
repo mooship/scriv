@@ -174,7 +174,7 @@ pub fn collect_tags(notes: &[Note]) -> HashMap<String, usize> {
 pub fn list_notes(opts: &ListOptions) -> Result<Vec<Note>, String> {
     let mut notes = load_notes()?;
 
-    // Updated-sort uses updated_at when available, otherwise falls back to created_at.
+    /// Returns the sort key for updated-mode: `updated_at` when set, otherwise `created_at`.
     fn updated_sort_key(note: &Note) -> &str {
         if note.updated_at.is_empty() {
             note.created_at.as_str()
