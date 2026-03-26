@@ -134,6 +134,38 @@ scriv import < backup.ndjson
 # Imported 3 notes.
 ```
 
+## Shell Alias
+
+If you'd like a shorter command, add an alias to your shell configuration:
+
+**Bash** (`~/.bashrc`):
+```sh
+alias s='scriv'
+```
+
+**Zsh** (`~/.zshrc`):
+```sh
+alias s='scriv'
+```
+
+**Fish** (`~/.config/fish/config.fish`):
+```fish
+alias s 'scriv'
+```
+
+**PowerShell** (`$PROFILE`):
+```powershell
+Set-Alias -Name s -Value scriv
+```
+
+Reload your shell (or `source` the file) and use `s` in place of `scriv`:
+
+```sh
+s add "remember to hydrate"
+s list
+s done 1
+```
+
 ## Storage
 
 Notes are saved to a local NDJSON file (or encrypted bytes when locked) - nothing leaves your machine.
