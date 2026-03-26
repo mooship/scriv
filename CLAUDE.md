@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## About
+
+Scriv is a fast local CLI note manager written in Rust (edition 2024) with optional password encryption.
+
 ## Commands
 
 ```sh
@@ -10,7 +14,22 @@ cargo install --path .  # build and install to Cargo bin dir
 cargo test          # run all tests
 cargo test add_note_assigns_id_1_when_empty  # run a single test
 cargo clippy -- -D warnings   # lint
+cargo fmt           # format code (default rustfmt settings)
 ```
+
+## Safety
+
+- **Never publish (`cargo publish`) or run destructive storage operations without explicit permission from the user.** Always ask first and wait for confirmation.
+
+## Code style
+
+- **No inline comments** — never use `//` comments on the same line as code. Use `///` documentation comments where genuinely useful.
+- Use `cargo fmt` (default rustfmt settings) before committing.
+- `cargo clippy -- -D warnings` must pass.
+
+## Testing
+
+Tests are unit tests within `src/` modules. Run all with `cargo test`. Tests use `set_notes_path_override(...)` (from `src/storage.rs`) to redirect storage to a temp file, isolating tests from real user data.
 
 ## Architecture
 
@@ -28,7 +47,7 @@ cargo clippy -- -D warnings   # lint
 
 ### Storage
 
-Notes persist as NDJSON at a platform-specific path resolved by `notes_path()` in `src/storage.rs` (re-exported by `src/lib.rs`). Tests override this via `set_notes_path_override(...)` to isolate tests from real user notes.
+Notes persist as NDJSON at a platform-specific path resolved by `notes_path()` in `src/storage.rs` (re-exported by `src/lib.rs`).
 
 ### ID assignment
 
