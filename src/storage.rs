@@ -7,9 +7,11 @@ use std::fs;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
+use zeroize::Zeroizing;
 
 static NOTES_PATH_OVERRIDE: Lazy<Mutex<Option<PathBuf>>> = Lazy::new(|| Mutex::new(None));
-static ACTIVE_PASSWORD: Lazy<Mutex<String>> = Lazy::new(|| Mutex::new(String::new()));
+static ACTIVE_PASSWORD: Lazy<Mutex<Zeroizing<String>>> =
+    Lazy::new(|| Mutex::new(Zeroizing::new(String::new())));
 
 /// Override notes path for tests and controlled environments.
 pub fn set_notes_path_override(path: Option<PathBuf>) {
@@ -24,15 +26,15 @@ pub fn set_active_password(password: String) {
     let mut guard = ACTIVE_PASSWORD
         .lock()
         .expect("active password lock poisoned");
-    *guard = password;
+    *guard = Zeroizing::new(password);
 }
 
 /// Get current active password value.
 pub fn active_password() -> String {
-    ACTIVE_PASSWORD
+    let guard = ACTIVE_PASSWORD
         .lock()
-        .expect("active password lock poisoned")
-        .clone()
+        .expect("active password lock poisoned");
+    String::clone(&guard)
 }
 
 /// Resolve the platform-specific notes file path.
@@ -141,11 +143,11 @@ pub fn save_notes(notes: &[Note]) -> Result<(), String> {
         ndjson.push(b'\n');
     }
 
-    let payload = if active_password().is_empty() {
+    let pw = active_password();
+    let payload = if pw.is_empty() {
         ndjson
     } else {
-        encrypt_notes(&ndjson, &active_password())
-            .map_err(|e| format!("cannot encrypt notes: {}", e))?
+        encrypt_notes(&ndjson, &pw).map_err(|e| format!("cannot encrypt notes: {}", e))?
     };
 
     let mut tmp = tempfile::NamedTempFile::new_in(&dir)
@@ -154,6 +156,14 @@ pub fn save_notes(notes: &[Note]) -> Result<(), String> {
         .map_err(|e| format!("cannot write to {}: {}", path.display(), e))?;
     tmp.persist(&path)
         .map_err(|e| format!("cannot write to {}: {}", path.display(), e.error))?;
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let perms = std::fs::Permissions::from_mode(0o600);
+        std::fs::set_permissions(&path, perms)
+            .map_err(|e| format!("cannot set permissions on {}: {}", path.display(), e))?;
+    }
 
     Ok(())
 }
