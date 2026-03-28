@@ -1,6 +1,6 @@
 [package]
 name = "scriv"
-version = "1.0.3"
+version = "1.1.0"
 edition = "2024"
 description = "Fast local CLI note manager with optional password encryption"
 readme = "README.md"
@@ -22,3 +22,4 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 sha2 = "0.10"
 tempfile = "3.13"
+zeroize = "1"

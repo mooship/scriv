@@ -3,7 +3,7 @@
 use crate::model::{ListOptions, Note};
 use crate::storage::{load_notes, save_notes};
 use chrono::Utc;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 /// Current UTC timestamp in RFC3339 format used by persisted note fields.
 fn now_timestamp() -> String {
@@ -40,25 +40,34 @@ pub fn remove_note(id: u64) -> Result<Note, String> {
 /// Remove multiple notes by id. In non-force mode, operation is all-or-nothing.
 pub fn remove_notes(ids: &[u64], force: bool) -> Result<Vec<Note>, String> {
     let mut notes = load_notes()?;
-    let mut removed = Vec::new();
-    let mut not_found = Vec::new();
+    let mut target_ids: HashSet<u64> = ids.iter().copied().collect();
 
-    for id in ids {
-        if let Some(pos) = notes.iter().position(|n| n.id == *id) {
-            removed.push(notes.remove(pos));
-        } else {
-            not_found.push(*id);
+    if !force {
+        let existing: HashSet<u64> = notes.iter().map(|n| n.id).collect();
+        let not_found: Vec<u64> = ids
+            .iter()
+            .copied()
+            .filter(|id| !existing.contains(id))
+            .collect();
+        if !not_found.is_empty() {
+            let joined = not_found
+                .iter()
+                .map(|i| i.to_string())
+                .collect::<Vec<_>>()
+                .join(", ");
+            return Err(format!("no note with id {}; no notes were removed", joined));
         }
     }
 
-    if !force && !not_found.is_empty() {
-        let joined = not_found
-            .iter()
-            .map(|i| i.to_string())
-            .collect::<Vec<_>>()
-            .join(", ");
-        return Err(format!("no note with id {}; no notes were removed", joined));
-    }
+    let mut removed = Vec::new();
+    notes.retain(|n| {
+        if target_ids.remove(&n.id) {
+            removed.push(n.clone());
+            false
+        } else {
+            true
+        }
+    });
 
     save_notes(&notes)?;
     Ok(removed)
