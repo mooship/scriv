@@ -69,24 +69,32 @@ pub fn highlight_match(text: &str, query: &str) -> String {
     let lower_text = text.to_lowercase();
     let lower_query = query.to_lowercase();
 
-    let mut lower_to_orig: Vec<usize> = Vec::with_capacity(lower_text.len() + 1);
+    let mut lower_to_orig_start: Vec<usize> = Vec::with_capacity(lower_text.len() + 1);
+    let mut lower_to_orig_end: Vec<usize> = Vec::with_capacity(lower_text.len() + 1);
     for (orig_pos, oc) in text.char_indices() {
+        let orig_char_end = orig_pos + oc.len_utf8();
         let lc_len: usize = oc.to_lowercase().map(|c| c.len_utf8()).sum();
         for _ in 0..lc_len {
-            lower_to_orig.push(orig_pos);
+            lower_to_orig_start.push(orig_pos);
+            lower_to_orig_end.push(orig_char_end);
         }
     }
-    lower_to_orig.push(text.len());
+    lower_to_orig_start.push(text.len());
+    lower_to_orig_end.push(text.len());
 
     let mut result = String::new();
     let mut prev_orig_end: usize = 0;
 
     for (low_start, _) in lower_text.match_indices(&lower_query) {
         let low_end = low_start + lower_query.len();
-        let orig_start = lower_to_orig[low_start];
-        let orig_end = lower_to_orig[low_end];
+        let orig_start = lower_to_orig_start[low_start];
+        let orig_end = if low_end > 0 {
+            lower_to_orig_end[low_end - 1]
+        } else {
+            lower_to_orig_start[0]
+        };
 
-        if orig_start < prev_orig_end {
+        if orig_start < prev_orig_end || orig_start >= orig_end {
             continue;
         }
 

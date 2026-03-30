@@ -145,7 +145,11 @@ pub fn tag_note(id: u64, tags: &[String]) -> Result<Note, String> {
     let mut notes = load_notes()?;
     if let Some(note) = notes.iter_mut().find(|n| n.id == id) {
         for tag in tags {
-            if !note.tags.iter().any(|t| t.eq_ignore_ascii_case(tag)) {
+            if !note
+                .tags
+                .iter()
+                .any(|t| t.to_lowercase() == tag.to_lowercase())
+            {
                 note.tags.push(tag.clone());
             }
         }
@@ -156,17 +160,17 @@ pub fn tag_note(id: u64, tags: &[String]) -> Result<Note, String> {
     Err(format!("no note with id {}", id))
 }
 
-/// Remove one tag from a note, returning an error if the tag is not present.
+/// Remove one tag from a note (case-insensitive). No-op if the tag is absent.
 pub fn untag_note(id: u64, tag: &str) -> Result<Note, String> {
     let mut notes = load_notes()?;
     if let Some(note) = notes.iter_mut().find(|n| n.id == id) {
         let before = note.tags.len();
-        note.tags.retain(|t| !t.eq_ignore_ascii_case(tag));
-        if note.tags.len() == before {
-            return Err(format!("note {} does not have tag #{}", id, tag));
-        }
+        note.tags.retain(|t| t.to_lowercase() != tag.to_lowercase());
+        let changed = note.tags.len() < before;
         let out = note.clone();
-        save_notes(&notes)?;
+        if changed {
+            save_notes(&notes)?;
+        }
         return Ok(out);
     }
     Err(format!("no note with id {}", id))

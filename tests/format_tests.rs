@@ -104,3 +104,23 @@ fn read_stdin_text_whitespace_only_returns_error() {
     let err = read_stdin_text(input).expect_err("expected error");
     assert_eq!(err, "no text provided via stdin");
 }
+
+#[test]
+fn read_stdin_text_strips_crlf() {
+    let input = Cursor::new(b"hello\r\nworld\r\n");
+    let result = read_stdin_text(input).expect("read stdin");
+    assert_eq!(result, "hello\nworld");
+}
+
+#[test]
+fn highlight_match_unicode_case_fold_no_panic() {
+    let result = highlight_match("Ökologie test", "ökologie");
+    assert!(result.contains("\x1b[1;33m"));
+    assert!(result.contains("Ökologie"));
+}
+
+#[test]
+fn highlight_match_expansion_char_no_panic() {
+    let result = highlight_match("İstanbul", "i");
+    assert!(!result.is_empty());
+}
