@@ -276,6 +276,9 @@ fn cmd_import<R: Read>(reader: R) -> Result<(), String> {
         if !note.created_at.is_empty() && DateTime::parse_from_rfc3339(&note.created_at).is_err() {
             return Err(format!("line {}: invalid created_at timestamp", idx + 1));
         }
+        if !note.updated_at.is_empty() && DateTime::parse_from_rfc3339(&note.updated_at).is_err() {
+            return Err(format!("line {}: invalid updated_at timestamp", idx + 1));
+        }
         incoming.push(note);
     }
 
