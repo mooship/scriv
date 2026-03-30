@@ -172,8 +172,31 @@ fn untag_note_noop_when_tag_absent() {
 
     add_note("task").expect("add");
     tag_note(1, &["work".to_string()]).expect("tag");
-    let err = untag_note(1, "nonexistent").expect_err("expected error for absent tag");
-    assert!(err.contains("does not have tag"));
+    let note = untag_note(1, "nonexistent").expect("untag nonexistent");
+    assert_eq!(note.tags, vec!["work".to_string()]);
+}
+
+#[test]
+fn tag_note_deduplicates_case_insensitive() {
+    let _guard = lock_test();
+    let _env = TestEnv::new();
+
+    add_note("task").expect("add");
+    tag_note(1, &["Work".to_string()]).expect("tag 1");
+    let note = tag_note(1, &["work".to_string()]).expect("tag 2");
+    assert_eq!(note.tags.len(), 1);
+    assert_eq!(note.tags[0], "Work");
+}
+
+#[test]
+fn untag_note_removes_case_insensitive() {
+    let _guard = lock_test();
+    let _env = TestEnv::new();
+
+    add_note("task").expect("add");
+    tag_note(1, &["Work".to_string()]).expect("tag");
+    let note = untag_note(1, "work").expect("untag");
+    assert!(note.tags.is_empty());
 }
 
 #[test]
