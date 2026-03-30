@@ -20,7 +20,7 @@ pub fn read_stdin_text<R: Read>(reader: R) -> Result<String, String> {
         if out.len() + line.len() > MAX_STDIN_BYTES {
             return Err("stdin input exceeds 10 MB limit".to_string());
         }
-        out.push_str(line.trim_end_matches('\n'));
+        out.push_str(line.trim_end_matches(['\n', '\r']));
         out.push('\n');
     }
 
@@ -58,42 +58,45 @@ pub fn note_age(ts: &str) -> String {
 
 /// ANSI-highlight all case-insensitive matches of `query` inside `text`.
 ///
-/// Uses character-level indexing to handle multi-byte and case-folding
-/// differences safely (e.g. where `to_lowercase()` changes byte length).
+/// Builds a byte-offset mapping between the lowercased and original strings
+/// so that case-folding length changes (e.g. German ß, Turkish İ) cannot
+/// cause panics.
 pub fn highlight_match(text: &str, query: &str) -> String {
     if query.is_empty() {
         return text.to_string();
     }
 
-    let lower_q = query.to_lowercase();
-    let q_chars: Vec<char> = lower_q.chars().collect();
-    let text_chars: Vec<char> = text.chars().collect();
-    let lower_chars: Vec<char> = text.to_lowercase().chars().collect();
+    let lower_text = text.to_lowercase();
+    let lower_query = query.to_lowercase();
 
-    if q_chars.len() > lower_chars.len() {
-        return text.to_string();
-    }
-
-    let mut result = String::new();
-    let mut i = 0;
-
-    while i <= lower_chars.len() - q_chars.len() {
-        if lower_chars[i..i + q_chars.len()] == q_chars[..] {
-            result.push_str("\x1b[1;33m");
-            for ch in &text_chars[i..i + q_chars.len()] {
-                result.push(*ch);
-            }
-            result.push_str("\x1b[0m");
-            i += q_chars.len();
-        } else {
-            result.push(text_chars[i]);
-            i += 1;
+    let mut lower_to_orig: Vec<usize> = Vec::with_capacity(lower_text.len() + 1);
+    for (orig_pos, oc) in text.char_indices() {
+        let lc_len: usize = oc.to_lowercase().map(|c| c.len_utf8()).sum();
+        for _ in 0..lc_len {
+            lower_to_orig.push(orig_pos);
         }
     }
+    lower_to_orig.push(text.len());
 
-    for ch in &text_chars[i..] {
-        result.push(*ch);
+    let mut result = String::new();
+    let mut prev_orig_end: usize = 0;
+
+    for (low_start, _) in lower_text.match_indices(&lower_query) {
+        let low_end = low_start + lower_query.len();
+        let orig_start = lower_to_orig[low_start];
+        let orig_end = lower_to_orig[low_end];
+
+        if orig_start < prev_orig_end {
+            continue;
+        }
+
+        result.push_str(&text[prev_orig_end..orig_start]);
+        result.push_str("\x1b[1;33m");
+        result.push_str(&text[orig_start..orig_end]);
+        result.push_str("\x1b[0m");
+        prev_orig_end = orig_end;
     }
 
+    result.push_str(&text[prev_orig_end..]);
     result
 }

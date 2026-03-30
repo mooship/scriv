@@ -145,7 +145,7 @@ pub fn tag_note(id: u64, tags: &[String]) -> Result<Note, String> {
     let mut notes = load_notes()?;
     if let Some(note) = notes.iter_mut().find(|n| n.id == id) {
         for tag in tags {
-            if !note.tags.iter().any(|t| t == tag) {
+            if !note.tags.iter().any(|t| t.eq_ignore_ascii_case(tag)) {
                 note.tags.push(tag.clone());
             }
         }
@@ -156,11 +156,15 @@ pub fn tag_note(id: u64, tags: &[String]) -> Result<Note, String> {
     Err(format!("no note with id {}", id))
 }
 
-/// Remove one tag from a note if present.
+/// Remove one tag from a note, returning an error if the tag is not present.
 pub fn untag_note(id: u64, tag: &str) -> Result<Note, String> {
     let mut notes = load_notes()?;
     if let Some(note) = notes.iter_mut().find(|n| n.id == id) {
+        let before = note.tags.len();
         note.tags.retain(|t| t != tag);
+        if note.tags.len() == before {
+            return Err(format!("note {} does not have tag #{}", id, tag));
+        }
         let out = note.clone();
         save_notes(&notes)?;
         return Ok(out);

@@ -270,6 +270,12 @@ fn cmd_import<R: Read>(reader: R) -> Result<(), String> {
         }
         let note: Note = serde_json::from_str(trimmed)
             .map_err(|e| format!("line {}: invalid JSON: {}", idx + 1, e))?;
+        if note.text.trim().is_empty() {
+            return Err(format!("line {}: note text cannot be empty", idx + 1));
+        }
+        if !note.created_at.is_empty() && DateTime::parse_from_rfc3339(&note.created_at).is_err() {
+            return Err(format!("line {}: invalid created_at timestamp", idx + 1));
+        }
         incoming.push(note);
     }
 

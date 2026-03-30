@@ -30,11 +30,11 @@ pub fn set_active_password(password: String) {
 }
 
 /// Get current active password value.
-pub fn active_password() -> String {
+pub fn active_password() -> Zeroizing<String> {
     let guard = ACTIVE_PASSWORD
         .lock()
         .expect("active password lock poisoned");
-    String::clone(&guard)
+    guard.clone()
 }
 
 /// Resolve the platform-specific notes file path.
@@ -89,8 +89,8 @@ pub fn notes_file_is_encrypted() -> bool {
     };
 
     let mut header = [0_u8; ENCRYPTED_MAGIC.len()];
-    match file.read(&mut header) {
-        Ok(n) => n == ENCRYPTED_MAGIC.len() && header == *ENCRYPTED_MAGIC,
+    match file.read_exact(&mut header) {
+        Ok(()) => header == *ENCRYPTED_MAGIC,
         Err(_) => false,
     }
 }
@@ -152,18 +152,20 @@ pub fn save_notes(notes: &[Note]) -> Result<(), String> {
 
     let mut tmp = tempfile::NamedTempFile::new_in(&dir)
         .map_err(|e| format!("cannot write to {}: {}", dir.display(), e))?;
-    tmp.write_all(&payload)
-        .map_err(|e| format!("cannot write to {}: {}", path.display(), e))?;
-    tmp.persist(&path)
-        .map_err(|e| format!("cannot write to {}: {}", path.display(), e.error))?;
 
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
         let perms = std::fs::Permissions::from_mode(0o600);
-        std::fs::set_permissions(&path, perms)
+        tmp.as_file()
+            .set_permissions(perms)
             .map_err(|e| format!("cannot set permissions on {}: {}", path.display(), e))?;
     }
+
+    tmp.write_all(&payload)
+        .map_err(|e| format!("cannot write to {}: {}", path.display(), e))?;
+    tmp.persist(&path)
+        .map_err(|e| format!("cannot write to {}: {}", path.display(), e.error))?;
 
     Ok(())
 }

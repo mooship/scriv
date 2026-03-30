@@ -172,8 +172,8 @@ fn untag_note_noop_when_tag_absent() {
 
     add_note("task").expect("add");
     tag_note(1, &["work".to_string()]).expect("tag");
-    let note = untag_note(1, "nonexistent").expect("untag nonexistent");
-    assert_eq!(note.tags, vec!["work".to_string()]);
+    let err = untag_note(1, "nonexistent").expect_err("expected error for absent tag");
+    assert!(err.contains("does not have tag"));
 }
 
 #[test]
