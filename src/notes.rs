@@ -161,7 +161,7 @@ pub fn untag_note(id: u64, tag: &str) -> Result<Note, String> {
     let mut notes = load_notes()?;
     if let Some(note) = notes.iter_mut().find(|n| n.id == id) {
         let before = note.tags.len();
-        note.tags.retain(|t| t != tag);
+        note.tags.retain(|t| !t.eq_ignore_ascii_case(tag));
         if note.tags.len() == before {
             return Err(format!("note {} does not have tag #{}", id, tag));
         }
