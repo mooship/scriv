@@ -9,7 +9,7 @@ use zeroize::Zeroizing;
 
 /// File signature for encrypted note payloads.
 pub const ENCRYPTED_MAGIC: &[u8; 6] = b"scriv\x01";
-const PBKDF2_ITERS: u32 = 100_000;
+const PBKDF2_ITERS: u32 = 600_000;
 const PBKDF2_KEY_LEN: usize = 32;
 const SALT_LEN: usize = 32;
 const NONCE_LEN: usize = 12;

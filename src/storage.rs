@@ -29,6 +29,14 @@ pub fn set_active_password(password: String) {
     *guard = Zeroizing::new(password);
 }
 
+/// Get current active password value (zeroized on drop).
+pub(crate) fn active_password_zeroized() -> Zeroizing<String> {
+    let guard = ACTIVE_PASSWORD
+        .lock()
+        .expect("active password lock poisoned");
+    guard.clone()
+}
+
 /// Get current active password value.
 pub fn active_password() -> String {
     let guard = ACTIVE_PASSWORD
@@ -89,8 +97,8 @@ pub fn notes_file_is_encrypted() -> bool {
     };
 
     let mut header = [0_u8; ENCRYPTED_MAGIC.len()];
-    match file.read(&mut header) {
-        Ok(n) => n == ENCRYPTED_MAGIC.len() && header == *ENCRYPTED_MAGIC,
+    match file.read_exact(&mut header) {
+        Ok(()) => header == *ENCRYPTED_MAGIC,
         Err(_) => false,
     }
 }
@@ -105,7 +113,7 @@ pub fn load_notes() -> Result<Vec<Note>, String> {
     };
 
     if is_encrypted_data(&data) {
-        data = decrypt_notes(&data, &active_password())?;
+        data = decrypt_notes(&data, &active_password_zeroized())?;
     }
 
     let reader = BufReader::new(data.as_slice());
@@ -143,7 +151,7 @@ pub fn save_notes(notes: &[Note]) -> Result<(), String> {
         ndjson.push(b'\n');
     }
 
-    let pw = active_password();
+    let pw = active_password_zeroized();
     let payload = if pw.is_empty() {
         ndjson
     } else {
@@ -152,18 +160,20 @@ pub fn save_notes(notes: &[Note]) -> Result<(), String> {
 
     let mut tmp = tempfile::NamedTempFile::new_in(&dir)
         .map_err(|e| format!("cannot write to {}: {}", dir.display(), e))?;
-    tmp.write_all(&payload)
-        .map_err(|e| format!("cannot write to {}: {}", path.display(), e))?;
-    tmp.persist(&path)
-        .map_err(|e| format!("cannot write to {}: {}", path.display(), e.error))?;
 
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
         let perms = std::fs::Permissions::from_mode(0o600);
-        std::fs::set_permissions(&path, perms)
+        tmp.as_file()
+            .set_permissions(perms)
             .map_err(|e| format!("cannot set permissions on {}: {}", path.display(), e))?;
     }
+
+    tmp.write_all(&payload)
+        .map_err(|e| format!("cannot write to {}: {}", path.display(), e))?;
+    tmp.persist(&path)
+        .map_err(|e| format!("cannot write to {}: {}", path.display(), e.error))?;
 
     Ok(())
 }

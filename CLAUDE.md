@@ -55,4 +55,10 @@ IDs are not sequential integers from a counter - new notes get `max(existing IDs
 
 ### Backwards compatibility
 
+This crate is published on crates.io and consumed as a library. All public API in `src/lib.rs` must follow semver:
+
+- **Patch releases** (1.1.x): bug fixes and internal changes only. No changes to public function signatures, return types, or observable behavior (e.g., a function that previously returned `Ok` must not start returning `Err` for the same inputs).
+- **Minor releases** (1.x.0): new public functions or fields are OK. Existing signatures and behavior must not break.
+- **Major releases** (x.0.0): required for any breaking change to public API (changed return types, removed functions, changed error conditions).
+
 `notes.json` is user data that persists across app versions. Never rename or remove existing JSON keys on `Note` (`id`, `text`, `created_at`, `updated_at`, `tags`). New optional fields must use serde defaults/skip-serialization behavior to preserve compatibility.
