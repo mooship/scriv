@@ -2,8 +2,8 @@
 
 use chrono::{DateTime, Utc};
 use scriv::{
-    ListOptions, Note, active_password, add_note, append_note, clear_notes, collect_tags,
-    edit_note, get_note, highlight_match, import_notes, list_notes, load_notes, note_age,
+    ListOptions, Note, add_note, append_note, clear_notes, collect_tags, edit_note, get_note,
+    has_active_password, highlight_match, import_notes, list_notes, load_notes, note_age,
     notes_file_is_encrypted, read_stdin_text, remove_notes, search_notes, set_active_password,
     tag_note, untag_note,
 };
@@ -71,6 +71,17 @@ fn parse_id(s: &str) -> Result<u64, String> {
 /// True when stdin is piped rather than interactive.
 fn stdin_is_piped() -> bool {
     !std::io::IsTerminal::is_terminal(&io::stdin())
+}
+
+/// Read text from piped stdin or from positional args starting at `start`.
+fn text_from_stdin_or_args(args: &[String], start: usize) -> Result<String, String> {
+    if stdin_is_piped() {
+        return read_stdin_text(io::stdin());
+    }
+    if args.len() <= start {
+        return Err("no text provided".to_string());
+    }
+    Ok(args[start..].join(" "))
 }
 
 /// True when stdout is attached to a terminal.
@@ -374,14 +385,9 @@ fn main() {
 
     let result = match cmd.as_str() {
         "add" => {
-            if stdin_is_piped() {
-                cmd_add(read_stdin_text(io::stdin()).unwrap_or_else(|e| fatal(&e)))
-            } else {
-                if args.len() < 3 {
-                    fatal("usage: scriv add <text>");
-                }
-                cmd_add(args[2..].join(" "))
-            }
+            let text = text_from_stdin_or_args(&args, 2)
+                .unwrap_or_else(|_| fatal("usage: scriv add <text>"));
+            cmd_add(text)
         }
         "list" => {
             let mut opts = ListOptions::default();
@@ -408,18 +414,9 @@ fn main() {
             if args.len() < 3 {
                 fatal("usage: scriv edit <id> <text>");
             }
-
-            if stdin_is_piped() {
-                cmd_edit(
-                    &args[2],
-                    read_stdin_text(io::stdin()).unwrap_or_else(|e| fatal(&e)),
-                )
-            } else {
-                if args.len() < 4 {
-                    fatal("usage: scriv edit <id> <text>");
-                }
-                cmd_edit(&args[2], args[3..].join(" "))
-            }
+            let text = text_from_stdin_or_args(&args, 3)
+                .unwrap_or_else(|_| fatal("usage: scriv edit <id> <text>"));
+            cmd_edit(&args[2], text)
         }
         "done" => {
             let mut force = false;
@@ -490,7 +487,7 @@ fn main() {
     };
 
     if let Err(err) = result {
-        if !active_password().is_empty() {
+        if has_active_password() {
             set_active_password(String::new());
         }
         eprintln!("Error: {}", err);
