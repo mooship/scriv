@@ -10,6 +10,33 @@ fn now_timestamp() -> String {
     Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string()
 }
 
+fn note_not_found(id: u64) -> String {
+    format!("no note with id {}", id)
+}
+
+/// Load a note by id, apply `f`, and persist if `f` returns `true`.
+///
+/// When `f` returns `true` the note's `updated_at` is set before saving.
+/// When `f` returns `false` the note is returned unchanged (no I/O).
+fn modify_note<F>(id: u64, f: F) -> Result<Note, String>
+where
+    F: FnOnce(&mut Note) -> bool,
+{
+    let mut notes = load_notes()?;
+    if let Some(note) = notes.iter_mut().find(|n| n.id == id) {
+        let changed = f(note);
+        if changed {
+            note.updated_at = now_timestamp();
+        }
+        let out = note.clone();
+        if changed {
+            save_notes(&notes)?;
+        }
+        return Ok(out);
+    }
+    Err(note_not_found(id))
+}
+
 /// Create and persist a new note with `max(existing_id) + 1` semantics.
 pub fn add_note(text: &str) -> Result<Note, String> {
     let mut notes = load_notes()?;
@@ -34,7 +61,7 @@ pub fn remove_note(id: u64) -> Result<Note, String> {
         save_notes(&notes)?;
         return Ok(note);
     }
-    Err(format!("no note with id {}", id))
+    Err(note_not_found(id))
 }
 
 /// Remove multiple notes by id. In non-force mode, operation is all-or-nothing.
@@ -88,28 +115,20 @@ pub fn search_notes(query: &str) -> Result<Vec<Note>, String> {
 
 /// Replace note text and set `updated_at`.
 pub fn edit_note(id: u64, text: &str) -> Result<Note, String> {
-    let mut notes = load_notes()?;
-    if let Some(note) = notes.iter_mut().find(|n| n.id == id) {
-        note.text = text.to_string();
-        note.updated_at = now_timestamp();
-        let out = note.clone();
-        save_notes(&notes)?;
-        return Ok(out);
-    }
-    Err(format!("no note with id {}", id))
+    let text = text.to_string();
+    modify_note(id, |note| {
+        note.text = text;
+        true
+    })
 }
 
 /// Append text to a note and set `updated_at`.
 pub fn append_note(id: u64, text: &str) -> Result<Note, String> {
-    let mut notes = load_notes()?;
-    if let Some(note) = notes.iter_mut().find(|n| n.id == id) {
-        note.text = format!("{} {}", note.text, text);
-        note.updated_at = now_timestamp();
-        let out = note.clone();
-        save_notes(&notes)?;
-        return Ok(out);
-    }
-    Err(format!("no note with id {}", id))
+    let suffix = text.to_string();
+    modify_note(id, |note| {
+        note.text = format!("{} {}", note.text, suffix);
+        true
+    })
 }
 
 /// Fetch one note by id.
@@ -118,7 +137,7 @@ pub fn get_note(id: u64) -> Result<Note, String> {
     notes
         .into_iter()
         .find(|n| n.id == id)
-        .ok_or_else(|| format!("no note with id {}", id))
+        .ok_or_else(|| note_not_found(id))
 }
 
 /// Remove all notes.
@@ -142,9 +161,9 @@ pub fn import_notes(mut incoming: Vec<Note>) -> Result<(), String> {
 
 /// Add tags to a note while preserving existing tags and deduplicating new ones.
 pub fn tag_note(id: u64, tags: &[String]) -> Result<Note, String> {
-    let mut notes = load_notes()?;
-    if let Some(note) = notes.iter_mut().find(|n| n.id == id) {
-        for tag in tags {
+    let tags: Vec<String> = tags.to_vec();
+    modify_note(id, |note| {
+        for tag in &tags {
             if !note
                 .tags
                 .iter()
@@ -153,27 +172,18 @@ pub fn tag_note(id: u64, tags: &[String]) -> Result<Note, String> {
                 note.tags.push(tag.clone());
             }
         }
-        let out = note.clone();
-        save_notes(&notes)?;
-        return Ok(out);
-    }
-    Err(format!("no note with id {}", id))
+        true
+    })
 }
 
 /// Remove one tag from a note (case-insensitive). No-op if the tag is absent.
 pub fn untag_note(id: u64, tag: &str) -> Result<Note, String> {
-    let mut notes = load_notes()?;
-    if let Some(note) = notes.iter_mut().find(|n| n.id == id) {
+    let needle = tag.to_lowercase();
+    modify_note(id, |note| {
         let before = note.tags.len();
-        note.tags.retain(|t| t.to_lowercase() != tag.to_lowercase());
-        let changed = note.tags.len() < before;
-        let out = note.clone();
-        if changed {
-            save_notes(&notes)?;
-        }
-        return Ok(out);
-    }
-    Err(format!("no note with id {}", id))
+        note.tags.retain(|t| t.to_lowercase() != needle);
+        note.tags.len() < before
+    })
 }
 
 /// Build tag usage counts across a set of notes.
