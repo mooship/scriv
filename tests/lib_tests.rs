@@ -200,6 +200,27 @@ fn untag_note_removes_case_insensitive() {
 }
 
 #[test]
+fn untag_note_sets_updated_at() {
+    let _guard = lock_test();
+    let _env = TestEnv::new();
+
+    add_note("task").expect("add");
+    tag_note(1, &["work".to_string()]).expect("tag");
+    let note = untag_note(1, "work").expect("untag");
+    assert!(!note.updated_at.is_empty());
+}
+
+#[test]
+fn untag_note_noop_does_not_set_updated_at() {
+    let _guard = lock_test();
+    let _env = TestEnv::new();
+
+    add_note("task").expect("add");
+    let note = untag_note(1, "nonexistent").expect("untag");
+    assert!(note.updated_at.is_empty());
+}
+
+#[test]
 fn untag_note_missing_id_returns_error() {
     let _guard = lock_test();
     let _env = TestEnv::new();

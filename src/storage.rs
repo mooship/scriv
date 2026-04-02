@@ -45,6 +45,14 @@ pub fn active_password() -> String {
     String::clone(&guard)
 }
 
+/// Check whether an active password is currently set.
+pub fn has_active_password() -> bool {
+    let guard = ACTIVE_PASSWORD
+        .lock()
+        .expect("active password lock poisoned");
+    !guard.is_empty()
+}
+
 /// Resolve the platform-specific notes file path.
 pub fn notes_path() -> PathBuf {
     if let Some(p) = NOTES_PATH_OVERRIDE
