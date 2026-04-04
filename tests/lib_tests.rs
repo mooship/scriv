@@ -200,6 +200,20 @@ fn untag_note_removes_case_insensitive() {
 }
 
 #[test]
+fn tag_note_noop_does_not_set_updated_at() {
+    let _guard = lock_test();
+    let _env = TestEnv::new();
+
+    add_note("task").expect("add");
+    let first = tag_note(1, &["work".to_string()]).expect("tag");
+    let second = tag_note(1, &["work".to_string()]).expect("tag duplicate");
+    assert_eq!(first.updated_at, second.updated_at);
+
+    let persisted = load_notes().expect("load");
+    assert_eq!(persisted[0].updated_at, first.updated_at);
+}
+
+#[test]
 fn untag_note_sets_updated_at() {
     let _guard = lock_test();
     let _env = TestEnv::new();

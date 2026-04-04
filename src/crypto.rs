@@ -16,15 +16,16 @@ const NONCE_LEN: usize = 12;
 
 /// Encrypt NDJSON note bytes using AES-256-GCM and PBKDF2 key derivation.
 pub fn encrypt_notes(plaintext: &[u8], password: &str) -> Result<Vec<u8>, String> {
+    let mut rng = rand::rng();
     let mut salt = [0_u8; SALT_LEN];
-    rand::rng().fill(&mut salt);
+    rng.fill(&mut salt);
 
     let mut key = Zeroizing::new(vec![0_u8; PBKDF2_KEY_LEN]);
     pbkdf2_hmac::<Sha256>(password.as_bytes(), &salt, PBKDF2_ITERS, &mut key);
 
     let cipher = Aes256Gcm::new_from_slice(&key).map_err(|e| e.to_string())?;
     let mut nonce = [0_u8; NONCE_LEN];
-    rand::rng().fill(&mut nonce);
+    rng.fill(&mut nonce);
 
     let ciphertext = cipher
         .encrypt(Nonce::from_slice(&nonce), plaintext)
