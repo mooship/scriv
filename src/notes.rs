@@ -161,18 +161,19 @@ pub fn import_notes(mut incoming: Vec<Note>) -> Result<(), String> {
 
 /// Add tags to a note while preserving existing tags and deduplicating new ones.
 pub fn tag_note(id: u64, tags: &[String]) -> Result<Note, String> {
-    let tags: Vec<String> = tags.to_vec();
     modify_note(id, |note| {
-        for tag in &tags {
+        let mut changed = false;
+        for tag in tags {
             if !note
                 .tags
                 .iter()
                 .any(|t| t.to_lowercase() == tag.to_lowercase())
             {
                 note.tags.push(tag.clone());
+                changed = true;
             }
         }
-        true
+        changed
     })
 }
 

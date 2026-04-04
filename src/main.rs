@@ -247,12 +247,11 @@ fn cmd_search(query: &str) -> Result<(), String> {
 
     let color = stdout_is_terminal();
     for note in &results {
-        let text = if color {
-            highlight_match(&note.text, query)
+        if color {
+            println!("[{}] {}", note.id, highlight_match(&note.text, query));
         } else {
-            note.text.clone()
-        };
-        println!("[{}] {}", note.id, text);
+            println!("[{}] {}", note.id, note.text);
+        }
     }
     println!("{} matches.", results.len());
     Ok(())
@@ -363,7 +362,7 @@ fn main() {
         std::process::exit(1);
     }
 
-    let cmd = args[1].clone();
+    let cmd = &args[1];
     let no_prompt = [
         "lock",
         "unlock",
