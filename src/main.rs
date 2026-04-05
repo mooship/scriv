@@ -10,6 +10,9 @@ use scriv::{
 use std::collections::BTreeMap;
 use std::env;
 use std::io::{self, BufRead, Read, Write};
+use zeroize::Zeroizing;
+
+const MAX_NOTE_BYTES: usize = 1_048_576;
 
 const USAGE_TEMPLATE: &str = "scriv - Fast local note manager
 
@@ -90,12 +93,17 @@ fn stdout_is_terminal() -> bool {
 }
 
 /// Prompt for a password without echoing input.
-fn prompt_password(msg: &str) -> Result<String, String> {
+fn prompt_password(msg: &str) -> Result<Zeroizing<String>, String> {
     eprint!("{}", msg);
-    rpassword::read_password().map_err(|e| e.to_string())
+    rpassword::read_password()
+        .map(Zeroizing::new)
+        .map_err(|e| e.to_string())
 }
 
 fn cmd_add(text: String) -> Result<(), String> {
+    if text.len() > MAX_NOTE_BYTES {
+        return Err("note text exceeds 1 MB limit".to_string());
+    }
     let note = add_note(&text)?;
     println!("Added [{}] {}", note.id, note.text);
     Ok(())
@@ -166,6 +174,9 @@ fn cmd_done(id_strs: &[String], force: bool) -> Result<(), String> {
 }
 
 fn cmd_edit(id_str: &str, text: String) -> Result<(), String> {
+    if text.len() > MAX_NOTE_BYTES {
+        return Err("note text exceeds 1 MB limit".to_string());
+    }
     let id = parse_id(id_str)?;
     let note = edit_note(id, &text)?;
     println!("Updated [{}] {}", note.id, note.text);
@@ -208,6 +219,9 @@ fn cmd_tags() -> Result<(), String> {
 }
 
 fn cmd_append(id_str: &str, text: String) -> Result<(), String> {
+    if text.len() > MAX_NOTE_BYTES {
+        return Err("note text exceeds 1 MB limit".to_string());
+    }
     let id = parse_id(id_str)?;
     let note = append_note(id, &text)?;
     println!("Updated [{}] {}", note.id, note.text);
@@ -289,6 +303,11 @@ fn cmd_import<R: Read>(reader: R) -> Result<(), String> {
         if !note.updated_at.is_empty() && DateTime::parse_from_rfc3339(&note.updated_at).is_err() {
             return Err(format!("line {}: invalid updated_at timestamp", idx + 1));
         }
+        for tag in &note.tags {
+            if tag.trim().is_empty() {
+                return Err(format!("line {}: tag cannot be empty", idx + 1));
+            }
+        }
         incoming.push(note);
     }
 
@@ -306,7 +325,7 @@ fn cmd_import<R: Read>(reader: R) -> Result<(), String> {
 fn cmd_lock() -> Result<(), String> {
     let notes = if notes_file_is_encrypted() {
         let current = prompt_password("Current password: ")?;
-        set_active_password(current);
+        set_active_password(current.to_string());
         match load_notes() {
             Ok(v) => v,
             Err(e) => {
@@ -323,11 +342,11 @@ fn cmd_lock() -> Result<(), String> {
         return Err("password cannot be empty".to_string());
     }
     let confirm = prompt_password("Confirm password: ")?;
-    if pw != confirm {
+    if *pw != *confirm {
         return Err("passwords do not match".to_string());
     }
 
-    set_active_password(pw);
+    set_active_password(pw.to_string());
     scriv::save_notes(&notes)?;
     println!("Notes are now password protected.");
     Ok(())
@@ -340,7 +359,7 @@ fn cmd_unlock() -> Result<(), String> {
     }
 
     let pw = prompt_password("Password: ")?;
-    set_active_password(pw);
+    set_active_password(pw.to_string());
     let notes = match load_notes() {
         Ok(v) => v,
         Err(e) => {
@@ -377,7 +396,7 @@ fn main() {
 
     if notes_file_is_encrypted() && !no_prompt {
         match prompt_password("Password: ") {
-            Ok(pw) => set_active_password(pw),
+            Ok(pw) => set_active_password(pw.to_string()),
             Err(e) => fatal(&format!("cannot read password: {}", e)),
         }
     }
