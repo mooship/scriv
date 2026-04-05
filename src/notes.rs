@@ -192,7 +192,7 @@ pub fn collect_tags(notes: &[Note]) -> HashMap<String, usize> {
     let mut counts = HashMap::new();
     for note in notes {
         for tag in &note.tags {
-            *counts.entry(tag.clone()).or_insert(0) += 1;
+            *counts.entry(tag.to_lowercase()).or_insert(0) += 1;
         }
     }
     counts
