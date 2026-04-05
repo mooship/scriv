@@ -13,53 +13,42 @@ static NOTES_PATH_OVERRIDE: Lazy<Mutex<Option<PathBuf>>> = Lazy::new(|| Mutex::n
 static ACTIVE_PASSWORD: Lazy<Mutex<Zeroizing<String>>> =
     Lazy::new(|| Mutex::new(Zeroizing::new(String::new())));
 
+fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
+    m.lock().expect("lock poisoned")
+}
+
 /// Override notes path for tests and controlled environments.
 pub fn set_notes_path_override(path: Option<PathBuf>) {
-    let mut guard = NOTES_PATH_OVERRIDE
-        .lock()
-        .expect("notes path override lock poisoned");
-    *guard = path;
+    *lock(&NOTES_PATH_OVERRIDE) = path;
 }
 
 /// Set in-memory password used for decrypting/encrypting notes.
 pub fn set_active_password(password: String) {
-    let mut guard = ACTIVE_PASSWORD
-        .lock()
-        .expect("active password lock poisoned");
-    *guard = Zeroizing::new(password);
+    *lock(&ACTIVE_PASSWORD) = Zeroizing::new(password);
 }
 
 /// Get current active password value (zeroized on drop).
 pub(crate) fn active_password_zeroized() -> Zeroizing<String> {
-    let guard = ACTIVE_PASSWORD
-        .lock()
-        .expect("active password lock poisoned");
-    guard.clone()
+    lock(&ACTIVE_PASSWORD).clone()
 }
 
 /// Get current active password value.
+#[deprecated(
+    since = "1.3.0",
+    note = "leaks password to non-zeroized memory; use has_active_password() instead"
+)]
 pub fn active_password() -> String {
-    let guard = ACTIVE_PASSWORD
-        .lock()
-        .expect("active password lock poisoned");
-    String::clone(&guard)
+    String::clone(&lock(&ACTIVE_PASSWORD))
 }
 
 /// Check whether an active password is currently set.
 pub fn has_active_password() -> bool {
-    let guard = ACTIVE_PASSWORD
-        .lock()
-        .expect("active password lock poisoned");
-    !guard.is_empty()
+    !lock(&ACTIVE_PASSWORD).is_empty()
 }
 
 /// Resolve the platform-specific notes file path.
 pub fn notes_path() -> PathBuf {
-    if let Some(p) = NOTES_PATH_OVERRIDE
-        .lock()
-        .expect("notes path override lock poisoned")
-        .clone()
-    {
+    if let Some(p) = lock(&NOTES_PATH_OVERRIDE).clone() {
         return p;
     }
 
@@ -87,6 +76,7 @@ pub fn notes_path() -> PathBuf {
     };
 
     let base = if data_dir.is_empty() {
+        eprintln!("warning: HOME not set, using current directory for notes");
         PathBuf::from(".")
     } else {
         PathBuf::from(data_dir)
@@ -114,17 +104,21 @@ pub fn notes_file_is_encrypted() -> bool {
 /// Load notes from disk. Missing files are treated as an empty dataset.
 pub fn load_notes() -> Result<Vec<Note>, String> {
     let path = notes_path();
-    let mut data = match fs::read(&path) {
+    let raw = match fs::read(&path) {
         Ok(b) => b,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
         Err(e) => return Err(format!("cannot read from {}: {}", path.display(), e)),
     };
 
-    if is_encrypted_data(&data) {
-        data = decrypt_notes(&data, &active_password_zeroized())?;
-    }
+    let decrypted: Zeroizing<Vec<u8>>;
+    let buf: &[u8] = if is_encrypted_data(&raw) {
+        decrypted = Zeroizing::new(decrypt_notes(&raw, &active_password_zeroized())?);
+        &decrypted
+    } else {
+        &raw
+    };
 
-    let reader = BufReader::new(data.as_slice());
+    let reader = BufReader::new(buf);
     let mut notes = Vec::new();
 
     for line in reader.lines() {
@@ -152,7 +146,7 @@ pub fn save_notes(notes: &[Note]) -> Result<(), String> {
 
     fs::create_dir_all(&dir).map_err(|e| format!("cannot write to {}: {}", dir.display(), e))?;
 
-    let mut ndjson = Vec::new();
+    let mut ndjson = Zeroizing::new(Vec::new());
     for note in notes {
         let line = serde_json::to_string(note).map_err(|e| e.to_string())?;
         ndjson.extend_from_slice(line.as_bytes());
@@ -161,22 +155,20 @@ pub fn save_notes(notes: &[Note]) -> Result<(), String> {
 
     let pw = active_password_zeroized();
     let payload = if pw.is_empty() {
-        ndjson
+        (*ndjson).clone()
     } else {
         encrypt_notes(&ndjson, &pw).map_err(|e| format!("cannot encrypt notes: {}", e))?
     };
 
-    let mut tmp = tempfile::NamedTempFile::new_in(&dir)
-        .map_err(|e| format!("cannot write to {}: {}", dir.display(), e))?;
-
+    let mut builder = tempfile::Builder::new();
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        let perms = std::fs::Permissions::from_mode(0o600);
-        tmp.as_file()
-            .set_permissions(perms)
-            .map_err(|e| format!("cannot set permissions on {}: {}", path.display(), e))?;
+        builder.permissions(std::fs::Permissions::from_mode(0o600));
     }
+    let mut tmp = builder
+        .tempfile_in(&dir)
+        .map_err(|e| format!("cannot write to {}: {}", dir.display(), e))?;
 
     tmp.write_all(&payload)
         .map_err(|e| format!("cannot write to {}: {}", path.display(), e))?;

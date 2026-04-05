@@ -14,7 +14,9 @@ pub use notes::{
     add_note, append_note, clear_notes, collect_tags, edit_note, get_note, import_notes,
     list_notes, remove_note, remove_notes, search_notes, tag_note, untag_note,
 };
+#[allow(deprecated)]
+pub use storage::active_password;
 pub use storage::{
-    active_password, has_active_password, load_notes, notes_file_is_encrypted, notes_path,
-    save_notes, set_active_password, set_notes_path_override,
+    has_active_password, load_notes, notes_file_is_encrypted, notes_path, save_notes,
+    set_active_password, set_notes_path_override,
 };
