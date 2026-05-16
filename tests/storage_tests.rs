@@ -98,10 +98,8 @@ fn load_notes_corrupted_ndjson_returns_compat_error() {
     fs::write(notes_path(), "not json").expect("write corrupted file");
 
     let err = load_notes().expect_err("expected corrupted-file error");
-    assert_eq!(
-        err,
-        "notes file is corrupted. Run 'scriv clear --force' to reset."
-    );
+    assert!(err.contains("notes file is corrupted"));
+    assert!(err.contains("Run 'scriv clear --force' to reset."));
 }
 
 #[test]

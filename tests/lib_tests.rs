@@ -132,6 +132,17 @@ fn append_note_concatenates_text() {
 }
 
 #[test]
+fn append_note_rejects_combined_over_limit() {
+    let _guard = lock_test();
+    let _env = TestEnv::new();
+
+    let big = "x".repeat(scriv::MAX_NOTE_BYTES - 5);
+    add_note(&big).expect("add big note");
+    let err = append_note(1, "hello world").expect_err("expected size error");
+    assert!(err.contains("1 MB"));
+}
+
+#[test]
 fn append_note_missing_id_returns_error() {
     let _guard = lock_test();
     let _env = TestEnv::new();
@@ -287,6 +298,20 @@ fn collect_tags_counts_correctly() {
     assert_eq!(counts["work"], 2);
     assert_eq!(counts["urgent"], 1);
     assert!(!counts.contains_key("nonexistent"));
+}
+
+#[test]
+fn collect_tags_preserves_original_case() {
+    let notes = vec![Note {
+        id: 1,
+        text: "a".to_string(),
+        created_at: String::new(),
+        updated_at: String::new(),
+        tags: vec!["Rust".to_string()],
+    }];
+    let counts = collect_tags(&notes);
+    assert_eq!(counts.get("Rust"), Some(&1));
+    assert_eq!(counts.get("rust"), None);
 }
 
 #[test]
