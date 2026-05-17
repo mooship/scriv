@@ -27,6 +27,11 @@ pub fn set_active_password(password: String) {
     *lock(&ACTIVE_PASSWORD) = Zeroizing::new(password);
 }
 
+/// Set in-memory password from a zeroized source, avoiding an intermediate plain `String`.
+pub fn set_active_password_zeroized(password: Zeroizing<String>) {
+    *lock(&ACTIVE_PASSWORD) = password;
+}
+
 /// Get current active password value (zeroized on drop).
 pub(crate) fn active_password_zeroized() -> Zeroizing<String> {
     lock(&ACTIVE_PASSWORD).clone()
@@ -127,8 +132,11 @@ pub fn load_notes() -> Result<Vec<Note>, String> {
         if trimmed.is_empty() {
             continue;
         }
-        let note: Note = serde_json::from_str(trimmed).map_err(|_| {
-            "notes file is corrupted. Run 'scriv clear --force' to reset.".to_string()
+        let note: Note = serde_json::from_str(trimmed).map_err(|e| {
+            format!(
+                "notes file is corrupted ({}). Run 'scriv clear --force' to reset.",
+                e
+            )
         })?;
         notes.push(note);
     }
@@ -154,11 +162,6 @@ pub fn save_notes(notes: &[Note]) -> Result<(), String> {
     }
 
     let pw = active_password_zeroized();
-    let payload = if pw.is_empty() {
-        (*ndjson).clone()
-    } else {
-        encrypt_notes(&ndjson, &pw).map_err(|e| format!("cannot encrypt notes: {}", e))?
-    };
 
     let mut builder = tempfile::Builder::new();
     #[cfg(unix)]
@@ -170,8 +173,15 @@ pub fn save_notes(notes: &[Note]) -> Result<(), String> {
         .tempfile_in(&dir)
         .map_err(|e| format!("cannot write to {}: {}", dir.display(), e))?;
 
-    tmp.write_all(&payload)
-        .map_err(|e| format!("cannot write to {}: {}", path.display(), e))?;
+    if pw.is_empty() {
+        tmp.write_all(&ndjson)
+            .map_err(|e| format!("cannot write to {}: {}", path.display(), e))?;
+    } else {
+        let encrypted =
+            encrypt_notes(&ndjson, &pw).map_err(|e| format!("cannot encrypt notes: {}", e))?;
+        tmp.write_all(&encrypted)
+            .map_err(|e| format!("cannot write to {}: {}", path.display(), e))?;
+    }
     tmp.persist(&path)
         .map_err(|e| format!("cannot write to {}: {}", path.display(), e.error))?;
 

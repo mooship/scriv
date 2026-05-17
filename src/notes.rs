@@ -5,6 +5,16 @@ use crate::storage::{load_notes, save_notes};
 use chrono::Utc;
 use std::collections::{HashMap, HashSet};
 
+/// Maximum allowed byte length for note text.
+pub const MAX_NOTE_BYTES: usize = 1_048_576;
+
+fn validate_text_size(text: &str) -> Result<(), String> {
+    if text.len() > MAX_NOTE_BYTES {
+        return Err("note text exceeds 1 MB limit".to_string());
+    }
+    Ok(())
+}
+
 /// Current UTC timestamp in RFC3339 format used by persisted note fields.
 fn now_timestamp() -> String {
     Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string()
@@ -20,11 +30,11 @@ fn note_not_found(id: u64) -> String {
 /// When `f` returns `false` the note is returned unchanged (no I/O).
 fn modify_note<F>(id: u64, f: F) -> Result<Note, String>
 where
-    F: FnOnce(&mut Note) -> bool,
+    F: FnOnce(&mut Note) -> Result<bool, String>,
 {
     let mut notes = load_notes()?;
     if let Some(note) = notes.iter_mut().find(|n| n.id == id) {
-        let changed = f(note);
+        let changed = f(note)?;
         if changed {
             note.updated_at = now_timestamp();
         }
@@ -39,6 +49,7 @@ where
 
 /// Create and persist a new note with `max(existing_id) + 1` semantics.
 pub fn add_note(text: &str) -> Result<Note, String> {
+    validate_text_size(text)?;
     let mut notes = load_notes()?;
     let max_id = notes.iter().map(|n| n.id).max().unwrap_or(0);
     let note = Note {
@@ -115,10 +126,10 @@ pub fn search_notes(query: &str) -> Result<Vec<Note>, String> {
 
 /// Replace note text and set `updated_at`.
 pub fn edit_note(id: u64, text: &str) -> Result<Note, String> {
-    let text = text.to_string();
+    validate_text_size(text)?;
     modify_note(id, |note| {
-        note.text = text;
-        true
+        note.text = text.to_string();
+        Ok(true)
     })
 }
 
@@ -126,8 +137,12 @@ pub fn edit_note(id: u64, text: &str) -> Result<Note, String> {
 pub fn append_note(id: u64, text: &str) -> Result<Note, String> {
     let suffix = text.to_string();
     modify_note(id, |note| {
-        note.text = format!("{} {}", note.text, suffix);
-        true
+        let combined = format!("{} {}", note.text, suffix);
+        if combined.len() > MAX_NOTE_BYTES {
+            return Err("note text exceeds 1 MB limit after append".to_string());
+        }
+        note.text = combined;
+        Ok(true)
     })
 }
 
@@ -173,7 +188,7 @@ pub fn tag_note(id: u64, tags: &[String]) -> Result<Note, String> {
                 changed = true;
             }
         }
-        changed
+        Ok(changed)
     })
 }
 
@@ -183,7 +198,7 @@ pub fn untag_note(id: u64, tag: &str) -> Result<Note, String> {
     modify_note(id, |note| {
         let before = note.tags.len();
         note.tags.retain(|t| t.to_lowercase() != needle);
-        note.tags.len() < before
+        Ok(note.tags.len() < before)
     })
 }
 
@@ -192,7 +207,7 @@ pub fn collect_tags(notes: &[Note]) -> HashMap<String, usize> {
     let mut counts = HashMap::new();
     for note in notes {
         for tag in &note.tags {
-            *counts.entry(tag.to_lowercase()).or_insert(0) += 1;
+            *counts.entry(tag.clone()).or_insert(0) += 1;
         }
     }
     counts

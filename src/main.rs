@@ -5,14 +5,12 @@ use scriv::{
     ListOptions, Note, add_note, append_note, clear_notes, collect_tags, edit_note, get_note,
     has_active_password, highlight_match, import_notes, list_notes, load_notes, note_age,
     notes_file_is_encrypted, read_stdin_text, remove_notes, search_notes, set_active_password,
-    tag_note, untag_note,
+    set_active_password_zeroized, tag_note, untag_note,
 };
 use std::collections::BTreeMap;
 use std::env;
 use std::io::{self, BufRead, Read, Write};
 use zeroize::Zeroizing;
-
-const MAX_NOTE_BYTES: usize = 1_048_576;
 
 const USAGE_TEMPLATE: &str = "scriv - Fast local note manager
 
@@ -25,7 +23,7 @@ Commands:
     list [--tag=<tag>] [--sort=id|date|updated] [--limit=N] [--full]
                             List notes, optionally filtered, sorted, and limited
     edit <id> <text>        Edit a note by id (or pipe new text via stdin)
-    append <id> <text>      Append text to an existing note
+    append <id> <text>      Append text to an existing note (or pipe text via stdin)
     done [--force] <id> [id2...]
                             Remove one or more notes by id (--force skips missing)
     search <text>           Search notes by text or tag
@@ -101,9 +99,6 @@ fn prompt_password(msg: &str) -> Result<Zeroizing<String>, String> {
 }
 
 fn cmd_add(text: String) -> Result<(), String> {
-    if text.len() > MAX_NOTE_BYTES {
-        return Err("note text exceeds 1 MB limit".to_string());
-    }
     let note = add_note(&text)?;
     println!("Added [{}] {}", note.id, note.text);
     Ok(())
@@ -174,9 +169,6 @@ fn cmd_done(id_strs: &[String], force: bool) -> Result<(), String> {
 }
 
 fn cmd_edit(id_str: &str, text: String) -> Result<(), String> {
-    if text.len() > MAX_NOTE_BYTES {
-        return Err("note text exceeds 1 MB limit".to_string());
-    }
     let id = parse_id(id_str)?;
     let note = edit_note(id, &text)?;
     println!("Updated [{}] {}", note.id, note.text);
@@ -197,6 +189,15 @@ fn cmd_tag(id_str: &str, tags: &[String]) -> Result<(), String> {
 
 fn cmd_untag(id_str: &str, tag: &str) -> Result<(), String> {
     let id = parse_id(id_str)?;
+    let before = get_note(id)?;
+    let had_tag = before
+        .tags
+        .iter()
+        .any(|t| t.to_lowercase() == tag.to_lowercase());
+    if !had_tag {
+        println!("Tag #{} not found on [{}] {}", tag, before.id, before.text);
+        return Ok(());
+    }
     let note = untag_note(id, tag)?;
     println!("Removed tag #{} from [{}] {}", tag, note.id, note.text);
     Ok(())
@@ -219,9 +220,6 @@ fn cmd_tags() -> Result<(), String> {
 }
 
 fn cmd_append(id_str: &str, text: String) -> Result<(), String> {
-    if text.len() > MAX_NOTE_BYTES {
-        return Err("note text exceeds 1 MB limit".to_string());
-    }
     let id = parse_id(id_str)?;
     let note = append_note(id, &text)?;
     println!("Updated [{}] {}", note.id, note.text);
@@ -325,7 +323,7 @@ fn cmd_import<R: Read>(reader: R) -> Result<(), String> {
 fn cmd_lock() -> Result<(), String> {
     let notes = if notes_file_is_encrypted() {
         let current = prompt_password("Current password: ")?;
-        set_active_password(current.to_string());
+        set_active_password_zeroized(current);
         match load_notes() {
             Ok(v) => v,
             Err(e) => {
@@ -346,7 +344,7 @@ fn cmd_lock() -> Result<(), String> {
         return Err("passwords do not match".to_string());
     }
 
-    set_active_password(pw.to_string());
+    set_active_password_zeroized(pw);
     scriv::save_notes(&notes)?;
     println!("Notes are now password protected.");
     Ok(())
@@ -359,7 +357,7 @@ fn cmd_unlock() -> Result<(), String> {
     }
 
     let pw = prompt_password("Password: ")?;
-    set_active_password(pw.to_string());
+    set_active_password_zeroized(pw);
     let notes = match load_notes() {
         Ok(v) => v,
         Err(e) => {
@@ -396,7 +394,7 @@ fn main() {
 
     if notes_file_is_encrypted() && !no_prompt {
         match prompt_password("Password: ") {
-            Ok(pw) => set_active_password(pw.to_string()),
+            Ok(pw) => set_active_password_zeroized(pw),
             Err(e) => fatal(&format!("cannot read password: {}", e)),
         }
     }
@@ -477,10 +475,12 @@ fn main() {
         }
         "tags" => cmd_tags(),
         "append" => {
-            if args.len() < 4 {
+            if args.len() < 3 {
                 fatal("usage: scriv append <id> <text>");
             }
-            cmd_append(&args[2], args[3..].join(" "))
+            let text = text_from_stdin_or_args(&args, 3)
+                .unwrap_or_else(|_| fatal("usage: scriv append <id> <text>"));
+            cmd_append(&args[2], text)
         }
         "export" => cmd_export(),
         "import" => cmd_import(io::stdin()),
