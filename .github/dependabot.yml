@@ -7,6 +7,10 @@ updates:
       day: "saturday"
       time: "09:00"
       timezone: "Africa/Johannesburg"
+    groups:
+      all:
+        patterns:
+          - "*"
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
@@ -14,3 +18,7 @@ updates:
       day: "saturday"
       time: "09:00"
       timezone: "Africa/Johannesburg"
+    groups:
+      all:
+        patterns:
+          - "*"
