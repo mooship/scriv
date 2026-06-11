@@ -85,6 +85,11 @@ fn text_from_stdin_or_args(args: &[String], start: usize) -> Result<String, Stri
     Ok(args[start..].join(" "))
 }
 
+/// Render the standard "[id] text" note form with control characters stripped.
+fn display_note(note: &Note) -> String {
+    format!("[{}] {}", note.id, sanitize_display(&note.text))
+}
+
 /// Render tags for display with control characters stripped.
 fn display_tags(tags: &[String]) -> String {
     tags.iter()
@@ -108,7 +113,7 @@ fn prompt_password(msg: &str) -> Result<Zeroizing<String>, String> {
 
 fn cmd_add(text: String) -> Result<(), String> {
     let note = add_note(&text)?;
-    println!("Added [{}] {}", note.id, sanitize_display(&note.text));
+    println!("Added {}", display_note(&note));
     Ok(())
 }
 
@@ -139,7 +144,7 @@ fn cmd_list(opts: ListOptions) -> Result<(), String> {
 fn cmd_view(id_str: &str) -> Result<(), String> {
     let id = parse_id(id_str)?;
     let note = get_note(id)?;
-    println!("[{}] {}", note.id, sanitize_display(&note.text));
+    println!("{}", display_note(&note));
 
     if let Ok(created) = DateTime::parse_from_rfc3339(&note.created_at) {
         println!(
@@ -170,7 +175,7 @@ fn cmd_done(id_strs: &[String], force: bool) -> Result<(), String> {
 
     let removed = remove_notes(&ids, force)?;
     for note in removed {
-        println!("Removed [{}] {}", note.id, sanitize_display(&note.text));
+        println!("Removed {}", display_note(&note));
     }
 
     Ok(())
@@ -179,7 +184,7 @@ fn cmd_done(id_strs: &[String], force: bool) -> Result<(), String> {
 fn cmd_edit(id_str: &str, text: String) -> Result<(), String> {
     let id = parse_id(id_str)?;
     let note = edit_note(id, &text)?;
-    println!("Updated [{}] {}", note.id, sanitize_display(&note.text));
+    println!("Updated {}", display_note(&note));
     Ok(())
 }
 
@@ -187,9 +192,8 @@ fn cmd_tag(id_str: &str, tags: &[String]) -> Result<(), String> {
     let id = parse_id(id_str)?;
     let note = tag_note(id, tags)?;
     println!(
-        "Tagged [{}] {}: #{}",
-        note.id,
-        sanitize_display(&note.text),
+        "Tagged {}: #{}",
+        display_note(&note),
         display_tags(&note.tags)
     );
     Ok(())
@@ -204,19 +208,17 @@ fn cmd_untag(id_str: &str, tag: &str) -> Result<(), String> {
         .any(|t| t.to_lowercase() == tag.to_lowercase());
     if !had_tag {
         println!(
-            "Tag #{} not found on [{}] {}",
+            "Tag #{} not found on {}",
             sanitize_display(tag),
-            before.id,
-            sanitize_display(&before.text)
+            display_note(&before)
         );
         return Ok(());
     }
     let note = untag_note(id, tag)?;
     println!(
-        "Removed tag #{} from [{}] {}",
+        "Removed tag #{} from {}",
         sanitize_display(tag),
-        note.id,
-        sanitize_display(&note.text)
+        display_note(&note)
     );
     Ok(())
 }
@@ -240,7 +242,7 @@ fn cmd_tags() -> Result<(), String> {
 fn cmd_append(id_str: &str, text: String) -> Result<(), String> {
     let id = parse_id(id_str)?;
     let note = append_note(id, &text)?;
-    println!("Updated [{}] {}", note.id, sanitize_display(&note.text));
+    println!("Updated {}", display_note(&note));
     Ok(())
 }
 
