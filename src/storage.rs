@@ -152,7 +152,16 @@ pub fn save_notes(notes: &[Note]) -> Result<(), String> {
         .ok_or_else(|| format!("cannot write to {}", path.display()))?
         .to_path_buf();
 
+    #[cfg(unix)]
+    let dir_existed = dir.is_dir();
+
     fs::create_dir_all(&dir).map_err(|e| format!("cannot write to {}: {}", dir.display(), e))?;
+
+    #[cfg(unix)]
+    if !dir_existed {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = fs::set_permissions(&dir, fs::Permissions::from_mode(0o700));
+    }
 
     let mut ndjson = Zeroizing::new(Vec::new());
     for note in notes {

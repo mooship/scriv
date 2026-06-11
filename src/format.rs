@@ -31,6 +31,18 @@ pub fn read_stdin_text<R: Read>(reader: R) -> Result<String, String> {
     Ok(trimmed)
 }
 
+/// Remove terminal control characters from user content before display.
+///
+/// Preserves newlines and tabs but strips all other Unicode control
+/// characters (including C1 controls such as CSI), so note text or tags
+/// sourced from imports or pipes cannot inject ANSI escape sequences
+/// into terminal output.
+pub fn sanitize_display(text: &str) -> String {
+    text.chars()
+        .filter(|c| *c == '\n' || *c == '\t' || !c.is_control())
+        .collect()
+}
+
 /// Convert an RFC3339 UTC timestamp into a compact relative-age label.
 pub fn note_age(ts: &str) -> String {
     let parsed = DateTime::parse_from_rfc3339(ts);
