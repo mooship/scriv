@@ -24,6 +24,12 @@ fn note_not_found(id: u64) -> String {
     format!("no note with id {}", id)
 }
 
+fn next_id(max_id: u64) -> Result<u64, String> {
+    max_id
+        .checked_add(1)
+        .ok_or_else(|| "note id limit reached".to_string())
+}
+
 /// Load a note by id, apply `f`, and persist if `f` returns `true`.
 ///
 /// When `f` returns `true` the note's `updated_at` is set before saving.
@@ -53,7 +59,7 @@ pub fn add_note(text: &str) -> Result<Note, String> {
     let mut notes = load_notes()?;
     let max_id = notes.iter().map(|n| n.id).max().unwrap_or(0);
     let note = Note {
-        id: max_id + 1,
+        id: next_id(max_id)?,
         text: text.to_string(),
         created_at: now_timestamp(),
         updated_at: String::new(),
@@ -166,7 +172,7 @@ pub fn import_notes(mut incoming: Vec<Note>) -> Result<(), String> {
     let mut max_id = notes.iter().map(|n| n.id).max().unwrap_or(0);
 
     for note in &mut incoming {
-        max_id += 1;
+        max_id = next_id(max_id)?;
         note.id = max_id;
     }
 

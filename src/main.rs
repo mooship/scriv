@@ -2,10 +2,10 @@
 
 use chrono::{DateTime, Utc};
 use scriv::{
-    ListOptions, Note, add_note, append_note, clear_notes, collect_tags, edit_note, get_note,
-    has_active_password, highlight_match, import_notes, list_notes, load_notes, note_age,
-    notes_file_is_encrypted, read_stdin_text, remove_notes, search_notes, set_active_password,
-    set_active_password_zeroized, tag_note, untag_note,
+    ListOptions, MAX_NOTE_BYTES, Note, add_note, append_note, clear_notes, collect_tags, edit_note,
+    get_note, has_active_password, highlight_match, import_notes, list_notes, load_notes, note_age,
+    notes_file_is_encrypted, read_stdin_text, remove_notes, sanitize_display, search_notes,
+    set_active_password, set_active_password_zeroized, tag_note, untag_note,
 };
 use std::collections::BTreeMap;
 use std::env;
@@ -85,6 +85,19 @@ fn text_from_stdin_or_args(args: &[String], start: usize) -> Result<String, Stri
     Ok(args[start..].join(" "))
 }
 
+/// Render the standard "[id] text" note form with control characters stripped.
+fn display_note(note: &Note) -> String {
+    format!("[{}] {}", note.id, sanitize_display(&note.text))
+}
+
+/// Render tags for display with control characters stripped.
+fn display_tags(tags: &[String]) -> String {
+    tags.iter()
+        .map(|t| sanitize_display(t))
+        .collect::<Vec<_>>()
+        .join(" #")
+}
+
 /// True when stdout is attached to a terminal.
 fn stdout_is_terminal() -> bool {
     std::io::IsTerminal::is_terminal(&io::stdout())
@@ -100,7 +113,7 @@ fn prompt_password(msg: &str) -> Result<Zeroizing<String>, String> {
 
 fn cmd_add(text: String) -> Result<(), String> {
     let note = add_note(&text)?;
-    println!("Added [{}] {}", note.id, note.text);
+    println!("Added {}", display_note(&note));
     Ok(())
 }
 
@@ -112,14 +125,14 @@ fn cmd_list(opts: ListOptions) -> Result<(), String> {
     }
 
     for note in &notes {
-        let mut text = note.text.clone();
+        let mut text = sanitize_display(&note.text);
         if !opts.full && text.chars().count() > 72 {
             text = text.chars().take(72).collect::<String>() + "...";
         }
 
         let mut line = format!("[{}] ({}) {}", note.id, note_age(&note.created_at), text);
         if !note.tags.is_empty() {
-            line.push_str(&format!(" #{}", note.tags.join(" #")));
+            line.push_str(&format!(" #{}", display_tags(&note.tags)));
         }
         println!("{}", line);
     }
@@ -131,7 +144,7 @@ fn cmd_list(opts: ListOptions) -> Result<(), String> {
 fn cmd_view(id_str: &str) -> Result<(), String> {
     let id = parse_id(id_str)?;
     let note = get_note(id)?;
-    println!("[{}] {}", note.id, note.text);
+    println!("{}", display_note(&note));
 
     if let Ok(created) = DateTime::parse_from_rfc3339(&note.created_at) {
         println!(
@@ -148,7 +161,7 @@ fn cmd_view(id_str: &str) -> Result<(), String> {
         );
     }
     if !note.tags.is_empty() {
-        println!("    Tags: #{}", note.tags.join(" #"));
+        println!("    Tags: #{}", display_tags(&note.tags));
     }
 
     Ok(())
@@ -162,7 +175,7 @@ fn cmd_done(id_strs: &[String], force: bool) -> Result<(), String> {
 
     let removed = remove_notes(&ids, force)?;
     for note in removed {
-        println!("Removed [{}] {}", note.id, note.text);
+        println!("Removed {}", display_note(&note));
     }
 
     Ok(())
@@ -171,7 +184,7 @@ fn cmd_done(id_strs: &[String], force: bool) -> Result<(), String> {
 fn cmd_edit(id_str: &str, text: String) -> Result<(), String> {
     let id = parse_id(id_str)?;
     let note = edit_note(id, &text)?;
-    println!("Updated [{}] {}", note.id, note.text);
+    println!("Updated {}", display_note(&note));
     Ok(())
 }
 
@@ -179,10 +192,9 @@ fn cmd_tag(id_str: &str, tags: &[String]) -> Result<(), String> {
     let id = parse_id(id_str)?;
     let note = tag_note(id, tags)?;
     println!(
-        "Tagged [{}] {}: #{}",
-        note.id,
-        note.text,
-        note.tags.join(" #")
+        "Tagged {}: #{}",
+        display_note(&note),
+        display_tags(&note.tags)
     );
     Ok(())
 }
@@ -195,11 +207,19 @@ fn cmd_untag(id_str: &str, tag: &str) -> Result<(), String> {
         .iter()
         .any(|t| t.to_lowercase() == tag.to_lowercase());
     if !had_tag {
-        println!("Tag #{} not found on [{}] {}", tag, before.id, before.text);
+        println!(
+            "Tag #{} not found on {}",
+            sanitize_display(tag),
+            display_note(&before)
+        );
         return Ok(());
     }
     let note = untag_note(id, tag)?;
-    println!("Removed tag #{} from [{}] {}", tag, note.id, note.text);
+    println!(
+        "Removed tag #{} from {}",
+        sanitize_display(tag),
+        display_note(&note)
+    );
     Ok(())
 }
 
@@ -213,7 +233,7 @@ fn cmd_tags() -> Result<(), String> {
 
     let sorted: BTreeMap<String, usize> = counts.into_iter().collect();
     for (tag, count) in sorted {
-        println!("{:<20} {}", tag, count);
+        println!("{:<20} {}", sanitize_display(&tag), count);
     }
 
     Ok(())
@@ -222,7 +242,7 @@ fn cmd_tags() -> Result<(), String> {
 fn cmd_append(id_str: &str, text: String) -> Result<(), String> {
     let id = parse_id(id_str)?;
     let note = append_note(id, &text)?;
-    println!("Updated [{}] {}", note.id, note.text);
+    println!("Updated {}", display_note(&note));
     Ok(())
 }
 
@@ -259,10 +279,11 @@ fn cmd_search(query: &str) -> Result<(), String> {
 
     let color = stdout_is_terminal();
     for note in &results {
+        let text = sanitize_display(&note.text);
         if color {
-            println!("[{}] {}", note.id, highlight_match(&note.text, query));
+            println!("[{}] {}", note.id, highlight_match(&text, query));
         } else {
-            println!("[{}] {}", note.id, note.text);
+            println!("[{}] {}", note.id, text);
         }
     }
     println!("{} matches.", results.len());
@@ -280,12 +301,19 @@ fn cmd_export() -> Result<(), String> {
     Ok(())
 }
 
+const MAX_IMPORT_BYTES: u64 = 50 * 1024 * 1024;
+
 fn cmd_import<R: Read>(reader: R) -> Result<(), String> {
     let mut incoming = Vec::<Note>::new();
-    let br = io::BufReader::new(reader);
+    let br = io::BufReader::new(reader.take(MAX_IMPORT_BYTES + 1));
+    let mut total_bytes: u64 = 0;
 
     for (idx, line) in br.lines().enumerate() {
         let line = line.map_err(|e| e.to_string())?;
+        total_bytes += line.len() as u64 + 1;
+        if total_bytes > MAX_IMPORT_BYTES {
+            return Err("import input exceeds 50 MB limit".to_string());
+        }
         let trimmed = line.trim();
         if trimmed.is_empty() {
             continue;
@@ -294,6 +322,9 @@ fn cmd_import<R: Read>(reader: R) -> Result<(), String> {
             .map_err(|e| format!("line {}: invalid JSON: {}", idx + 1, e))?;
         if note.text.trim().is_empty() {
             return Err(format!("line {}: note text cannot be empty", idx + 1));
+        }
+        if note.text.len() > MAX_NOTE_BYTES {
+            return Err(format!("line {}: note text exceeds 1 MB limit", idx + 1));
         }
         if note.created_at.is_empty() || DateTime::parse_from_rfc3339(&note.created_at).is_err() {
             return Err(format!("line {}: invalid created_at timestamp", idx + 1));
