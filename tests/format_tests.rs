@@ -124,3 +124,27 @@ fn highlight_match_expansion_char_no_panic() {
     let result = highlight_match("İstanbul", "i");
     assert!(!result.is_empty());
 }
+
+#[test]
+fn sanitize_display_strips_ansi_escapes() {
+    let result = scriv::sanitize_display("evil \x1b[2J\x1b]0;pwned\x07 note");
+    assert_eq!(result, "evil [2J]0;pwned note");
+}
+
+#[test]
+fn sanitize_display_strips_c1_controls() {
+    let result = scriv::sanitize_display("a\u{9b}31mb");
+    assert_eq!(result, "a31mb");
+}
+
+#[test]
+fn sanitize_display_preserves_newlines_and_tabs() {
+    let result = scriv::sanitize_display("line one\n\tindented");
+    assert_eq!(result, "line one\n\tindented");
+}
+
+#[test]
+fn sanitize_display_keeps_plain_text_unchanged() {
+    let result = scriv::sanitize_display("hello wörld #tag");
+    assert_eq!(result, "hello wörld #tag");
+}
