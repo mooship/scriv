@@ -546,11 +546,8 @@ fn save_load_encrypted_notes() {
     assert_eq!(got[0].text, "secret note");
 }
 
-#[test]
-fn add_note_errors_when_id_space_exhausted() {
-    let _guard = lock_test();
-    let _env = TestEnv::new();
-
+/// Saves a single note with the maximum possible id and returns it.
+fn seed_max_id_note() -> Note {
     let note = Note {
         id: u64::MAX,
         text: "edge".to_string(),
@@ -558,8 +555,16 @@ fn add_note_errors_when_id_space_exhausted() {
         updated_at: String::new(),
         tags: Vec::new(),
     };
-    save_notes(&[note]).expect("save notes");
+    save_notes(std::slice::from_ref(&note)).expect("save notes");
+    note
+}
 
+#[test]
+fn add_note_errors_when_id_space_exhausted() {
+    let _guard = lock_test();
+    let _env = TestEnv::new();
+
+    seed_max_id_note();
     let err = add_note("overflow").expect_err("expected error");
     assert_eq!(err, "note id limit reached");
 }
@@ -569,15 +574,7 @@ fn import_notes_errors_when_id_space_exhausted() {
     let _guard = lock_test();
     let _env = TestEnv::new();
 
-    let existing = Note {
-        id: u64::MAX,
-        text: "edge".to_string(),
-        created_at: "2026-01-01T00:00:00Z".to_string(),
-        updated_at: String::new(),
-        tags: Vec::new(),
-    };
-    save_notes(std::slice::from_ref(&existing)).expect("save notes");
-
+    let existing = seed_max_id_note();
     let err = import_notes(vec![existing]).expect_err("expected error");
     assert_eq!(err, "note id limit reached");
 }
