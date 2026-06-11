@@ -9,7 +9,7 @@ mod storage;
 
 #[doc(hidden)]
 pub use crypto::{ENCRYPTED_MAGIC, decrypt_notes, encrypt_notes, is_encrypted_data};
-pub use format::{highlight_match, note_age, read_stdin_text};
+pub use format::{highlight_match, note_age, read_stdin_text, sanitize_display};
 pub use model::{ListOptions, Note};
 pub use notes::{
     MAX_NOTE_BYTES, add_note, append_note, clear_notes, collect_tags, edit_note, get_note,
