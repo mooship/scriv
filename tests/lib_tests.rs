@@ -152,6 +152,67 @@ fn append_note_missing_id_returns_error() {
 }
 
 #[test]
+fn add_note_rejects_empty_text() {
+    let _guard = lock_test();
+    let _env = TestEnv::new();
+
+    let err = add_note("   ").expect_err("expected empty error");
+    assert_eq!(err, "note text cannot be empty");
+    assert!(load_notes().expect("load notes").is_empty());
+}
+
+#[test]
+fn edit_note_rejects_empty_text() {
+    let _guard = lock_test();
+    let _env = TestEnv::new();
+
+    add_note("original").expect("add");
+    let err = edit_note(1, "").expect_err("expected empty error");
+    assert_eq!(err, "note text cannot be empty");
+    assert_eq!(get_note(1).expect("get note").text, "original");
+}
+
+#[test]
+fn append_note_rejects_empty_text() {
+    let _guard = lock_test();
+    let _env = TestEnv::new();
+
+    add_note("original").expect("add");
+    let err = append_note(1, "  ").expect_err("expected empty error");
+    assert_eq!(err, "note text cannot be empty");
+    assert_eq!(get_note(1).expect("get note").text, "original");
+}
+
+#[test]
+fn import_notes_rejects_invalid_note() {
+    let _guard = lock_test();
+    let _env = TestEnv::new();
+
+    let err = import_notes(vec![Note {
+        id: 1,
+        text: String::new(),
+        created_at: "2024-01-01T00:00:00Z".to_string(),
+        updated_at: String::new(),
+        tags: Vec::new(),
+    }])
+    .expect_err("expected validation error");
+    assert_eq!(err, "note text cannot be empty");
+    assert!(load_notes().expect("load notes").is_empty());
+}
+
+#[test]
+fn validate_note_accepts_well_formed_note() {
+    let note = Note {
+        id: 1,
+        text: "hello".to_string(),
+        created_at: "2024-01-01T00:00:00Z".to_string(),
+        updated_at: String::new(),
+        tags: vec!["work".to_string()],
+    };
+    assert!(validate_note(&note).is_ok());
+}
+
+#[test]
 fn tag_note_deduplicates_tags() {
     let _guard = lock_test();
     let _env = TestEnv::new();

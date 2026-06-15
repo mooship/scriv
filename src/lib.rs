@@ -14,6 +14,7 @@ pub use model::{ListOptions, Note};
 pub use notes::{
     MAX_NOTE_BYTES, add_note, append_note, clear_notes, collect_tags, edit_note, get_note,
     import_notes, list_notes, remove_note, remove_notes, search_notes, tag_note, untag_note,
+    validate_note,
 };
 #[allow(deprecated)]
 pub use storage::active_password;
