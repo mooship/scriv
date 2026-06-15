@@ -2,10 +2,10 @@
 
 use chrono::{DateTime, Utc};
 use scriv::{
-    ListOptions, MAX_NOTE_BYTES, Note, add_note, append_note, clear_notes, collect_tags, edit_note,
-    get_note, has_active_password, highlight_match, import_notes, list_notes, load_notes, note_age,
+    ListOptions, Note, add_note, append_note, clear_notes, collect_tags, edit_note, get_note,
+    has_active_password, highlight_match, import_notes, list_notes, load_notes, note_age,
     notes_file_is_encrypted, read_stdin_text, remove_notes, sanitize_display, search_notes,
-    set_active_password, set_active_password_zeroized, tag_note, untag_note,
+    set_active_password, set_active_password_zeroized, tag_note, untag_note, validate_note,
 };
 use std::collections::BTreeMap;
 use std::env;
@@ -41,6 +41,24 @@ Options:
     -h, --help     Print help
     -V, --version  Print version
 ";
+
+/// Maximum displayed note characters before truncation in `list` output.
+const LIST_TRUNCATE_CHARS: usize = 72;
+
+/// Left-aligned column width for tag names in `tags` output.
+const TAG_COLUMN_WIDTH: usize = 20;
+
+/// Commands that never need the notes password and so skip the prompt.
+const NO_PASSWORD_PROMPT_COMMANDS: &[&str] = &[
+    "lock",
+    "unlock",
+    "-h",
+    "--help",
+    "help",
+    "-V",
+    "--version",
+    "version",
+];
 
 /// Return crate version embedded at compile time.
 fn app_version() -> &'static str {
@@ -111,6 +129,12 @@ fn prompt_password(msg: &str) -> Result<Zeroizing<String>, String> {
         .map_err(|e| e.to_string())
 }
 
+/// Load notes, clearing the active password if the load fails so a wrong
+/// password is not retained in memory.
+fn load_notes_clearing_password_on_err() -> Result<Vec<Note>, String> {
+    load_notes().inspect_err(|_| set_active_password(String::new()))
+}
+
 fn cmd_add(text: String) -> Result<(), String> {
     let note = add_note(&text)?;
     println!("Added {}", display_note(&note));
@@ -126,8 +150,8 @@ fn cmd_list(opts: ListOptions) -> Result<(), String> {
 
     for note in &notes {
         let mut text = sanitize_display(&note.text);
-        if !opts.full && text.chars().count() > 72 {
-            text = text.chars().take(72).collect::<String>() + "...";
+        if !opts.full && text.chars().count() > LIST_TRUNCATE_CHARS {
+            text = text.chars().take(LIST_TRUNCATE_CHARS).collect::<String>() + "...";
         }
 
         let mut line = format!("[{}] ({}) {}", note.id, note_age(&note.created_at), text);
@@ -233,7 +257,12 @@ fn cmd_tags() -> Result<(), String> {
 
     let sorted: BTreeMap<String, usize> = counts.into_iter().collect();
     for (tag, count) in sorted {
-        println!("{:<20} {}", sanitize_display(&tag), count);
+        println!(
+            "{:<width$} {}",
+            sanitize_display(&tag),
+            count,
+            width = TAG_COLUMN_WIDTH
+        );
     }
 
     Ok(())
@@ -320,23 +349,7 @@ fn cmd_import<R: Read>(reader: R) -> Result<(), String> {
         }
         let note: Note = serde_json::from_str(trimmed)
             .map_err(|e| format!("line {}: invalid JSON: {}", idx + 1, e))?;
-        if note.text.trim().is_empty() {
-            return Err(format!("line {}: note text cannot be empty", idx + 1));
-        }
-        if note.text.len() > MAX_NOTE_BYTES {
-            return Err(format!("line {}: note text exceeds 1 MB limit", idx + 1));
-        }
-        if note.created_at.is_empty() || DateTime::parse_from_rfc3339(&note.created_at).is_err() {
-            return Err(format!("line {}: invalid created_at timestamp", idx + 1));
-        }
-        if !note.updated_at.is_empty() && DateTime::parse_from_rfc3339(&note.updated_at).is_err() {
-            return Err(format!("line {}: invalid updated_at timestamp", idx + 1));
-        }
-        for tag in &note.tags {
-            if tag.trim().is_empty() {
-                return Err(format!("line {}: tag cannot be empty", idx + 1));
-            }
-        }
+        validate_note(&note).map_err(|e| format!("line {}: {}", idx + 1, e))?;
         incoming.push(note);
     }
 
@@ -355,13 +368,7 @@ fn cmd_lock() -> Result<(), String> {
     let notes = if notes_file_is_encrypted() {
         let current = prompt_password("Current password: ")?;
         set_active_password_zeroized(current);
-        match load_notes() {
-            Ok(v) => v,
-            Err(e) => {
-                set_active_password(String::new());
-                return Err(e);
-            }
-        }
+        load_notes_clearing_password_on_err()?
     } else {
         load_notes()?
     };
@@ -389,13 +396,7 @@ fn cmd_unlock() -> Result<(), String> {
 
     let pw = prompt_password("Password: ")?;
     set_active_password_zeroized(pw);
-    let notes = match load_notes() {
-        Ok(v) => v,
-        Err(e) => {
-            set_active_password(String::new());
-            return Err(e);
-        }
-    };
+    let notes = load_notes_clearing_password_on_err()?;
     set_active_password(String::new());
     scriv::save_notes(&notes)?;
     println!("Password protection removed.");
@@ -411,17 +412,7 @@ fn main() {
     }
 
     let cmd = &args[1];
-    let no_prompt = [
-        "lock",
-        "unlock",
-        "-h",
-        "--help",
-        "help",
-        "-V",
-        "--version",
-        "version",
-    ]
-    .contains(&cmd.as_str());
+    let no_prompt = NO_PASSWORD_PROMPT_COMMANDS.contains(&cmd.as_str());
 
     if notes_file_is_encrypted() && !no_prompt {
         match prompt_password("Password: ") {

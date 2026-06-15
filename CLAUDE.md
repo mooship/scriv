@@ -29,7 +29,7 @@ cargo fmt           # format code (default rustfmt settings)
 
 ## Testing
 
-Tests are unit tests within `src/` modules. Run all with `cargo test`. Tests use `set_notes_path_override(...)` (from `src/storage.rs`) to redirect storage to a temp file, isolating tests from real user data.
+Tests are integration tests under `tests/` (`crypto_tests.rs`, `format_tests.rs`, `lib_tests.rs`, `storage_tests.rs`, with shared helpers in `tests/common/`). Run all with `cargo test`. Tests use `set_notes_path_override(...)` (from `src/storage.rs`) to redirect storage to a temp file, isolating tests from real user data.
 
 ## Architecture
 
