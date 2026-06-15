@@ -2,17 +2,45 @@
 
 use crate::model::{ListOptions, Note};
 use crate::storage::{load_notes, save_notes};
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use std::collections::{HashMap, HashSet};
 
 /// Maximum allowed byte length for note text.
 pub const MAX_NOTE_BYTES: usize = 1_048_576;
 
-fn validate_text_size(text: &str) -> Result<(), String> {
+/// Validate user-supplied note text: non-empty (ignoring surrounding
+/// whitespace) and within the size limit.
+fn validate_text(text: &str) -> Result<(), String> {
+    if text.trim().is_empty() {
+        return Err("note text cannot be empty".to_string());
+    }
     if text.len() > MAX_NOTE_BYTES {
         return Err("note text exceeds 1 MB limit".to_string());
     }
     Ok(())
+}
+
+/// Validate a whole note record, enforcing the same invariants for every
+/// entry path (creation, editing, and import).
+pub fn validate_note(note: &Note) -> Result<(), String> {
+    validate_text(&note.text)?;
+    if note.created_at.is_empty() || DateTime::parse_from_rfc3339(&note.created_at).is_err() {
+        return Err("invalid created_at timestamp".to_string());
+    }
+    if !note.updated_at.is_empty() && DateTime::parse_from_rfc3339(&note.updated_at).is_err() {
+        return Err("invalid updated_at timestamp".to_string());
+    }
+    for tag in &note.tags {
+        if tag.trim().is_empty() {
+            return Err("tag cannot be empty".to_string());
+        }
+    }
+    Ok(())
+}
+
+/// Case-insensitive tag equality.
+fn tag_matches(a: &str, b: &str) -> bool {
+    a.to_lowercase() == b.to_lowercase()
 }
 
 /// Current UTC timestamp in RFC3339 format used by persisted note fields.
@@ -55,7 +83,7 @@ where
 
 /// Create and persist a new note with `max(existing_id) + 1` semantics.
 pub fn add_note(text: &str) -> Result<Note, String> {
-    validate_text_size(text)?;
+    validate_text(text)?;
     let mut notes = load_notes()?;
     let max_id = notes.iter().map(|n| n.id).max().unwrap_or(0);
     let note = Note {
@@ -132,7 +160,7 @@ pub fn search_notes(query: &str) -> Result<Vec<Note>, String> {
 
 /// Replace note text and set `updated_at`.
 pub fn edit_note(id: u64, text: &str) -> Result<Note, String> {
-    validate_text_size(text)?;
+    validate_text(text)?;
     modify_note(id, |note| {
         note.text = text.to_string();
         Ok(true)
@@ -141,6 +169,9 @@ pub fn edit_note(id: u64, text: &str) -> Result<Note, String> {
 
 /// Append text to a note and set `updated_at`.
 pub fn append_note(id: u64, text: &str) -> Result<Note, String> {
+    if text.trim().is_empty() {
+        return Err("note text cannot be empty".to_string());
+    }
     let suffix = text.to_string();
     modify_note(id, |note| {
         let combined = format!("{} {}", note.text, suffix);
@@ -168,6 +199,10 @@ pub fn clear_notes() -> Result<(), String> {
 
 /// Import notes and reassign ids to avoid conflicts.
 pub fn import_notes(mut incoming: Vec<Note>) -> Result<(), String> {
+    for note in &incoming {
+        validate_note(note)?;
+    }
+
     let mut notes = load_notes()?;
     let mut max_id = notes.iter().map(|n| n.id).max().unwrap_or(0);
 
@@ -185,11 +220,7 @@ pub fn tag_note(id: u64, tags: &[String]) -> Result<Note, String> {
     modify_note(id, |note| {
         let mut changed = false;
         for tag in tags {
-            if !note
-                .tags
-                .iter()
-                .any(|t| t.to_lowercase() == tag.to_lowercase())
-            {
+            if !note.tags.iter().any(|t| tag_matches(t, tag)) {
                 note.tags.push(tag.clone());
                 changed = true;
             }
