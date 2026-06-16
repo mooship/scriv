@@ -4,9 +4,56 @@ use crate::model::{ListOptions, Note};
 use crate::storage::{load_notes, save_notes};
 use chrono::{DateTime, Utc};
 use std::collections::{HashMap, HashSet};
+use std::io::{BufRead, BufReader, Read};
 
 /// Maximum allowed byte length for note text.
 pub const MAX_NOTE_BYTES: usize = 1_048_576;
+
+/// Maximum bytes accepted from an import stream.
+pub const MAX_IMPORT_BYTES: u64 = 50 * 1024 * 1024;
+
+/// Parse a required positive note id from a string.
+///
+/// Rejects non-integers and `0`, which is never a valid assigned id.
+pub fn parse_id(s: &str) -> Result<u64, String> {
+    let id = s
+        .parse::<u64>()
+        .map_err(|_| "id must be a positive integer".to_string())?;
+    if id == 0 {
+        return Err("id must be a positive integer".to_string());
+    }
+    Ok(id)
+}
+
+/// Parse NDJSON note records from a reader, validating each record and
+/// enforcing the import size limit.
+///
+/// Blank lines are skipped. Parse and validation errors are prefixed with the
+/// 1-based source line number. The returned vector may be empty when the input
+/// contains no note records.
+pub fn parse_import_ndjson<R: Read>(reader: R) -> Result<Vec<Note>, String> {
+    let mut incoming = Vec::<Note>::new();
+    let br = BufReader::new(reader.take(MAX_IMPORT_BYTES + 1));
+    let mut total_bytes: u64 = 0;
+
+    for (idx, line) in br.lines().enumerate() {
+        let line = line.map_err(|e| e.to_string())?;
+        total_bytes += line.len() as u64 + 1;
+        if total_bytes > MAX_IMPORT_BYTES {
+            return Err("import input exceeds 50 MB limit".to_string());
+        }
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        let note: Note = serde_json::from_str(trimmed)
+            .map_err(|e| format!("line {}: invalid JSON: {}", idx + 1, e))?;
+        validate_note(&note).map_err(|e| format!("line {}: {}", idx + 1, e))?;
+        incoming.push(note);
+    }
+
+    Ok(incoming)
+}
 
 /// Validate user-supplied note text: non-empty (ignoring surrounding
 /// whitespace) and within the size limit.
