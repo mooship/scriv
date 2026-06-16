@@ -4,6 +4,7 @@ mod common;
 use common::{TestEnv, lock_test};
 use scriv::*;
 use std::fs;
+use std::io::Cursor;
 
 #[test]
 fn add_note_assigns_id_1_when_empty() {
@@ -210,6 +211,145 @@ fn validate_note_accepts_well_formed_note() {
         tags: vec!["work".to_string()],
     };
     assert!(validate_note(&note).is_ok());
+}
+
+#[test]
+fn validate_note_rejects_empty_created_at() {
+    let note = Note {
+        id: 1,
+        text: "hello".to_string(),
+        created_at: String::new(),
+        updated_at: String::new(),
+        tags: Vec::new(),
+    };
+    let err = validate_note(&note).expect_err("expected error");
+    assert_eq!(err, "invalid created_at timestamp");
+}
+
+#[test]
+fn validate_note_rejects_malformed_created_at() {
+    let note = Note {
+        id: 1,
+        text: "hello".to_string(),
+        created_at: "not-a-date".to_string(),
+        updated_at: String::new(),
+        tags: Vec::new(),
+    };
+    let err = validate_note(&note).expect_err("expected error");
+    assert_eq!(err, "invalid created_at timestamp");
+}
+
+#[test]
+fn validate_note_rejects_malformed_updated_at() {
+    let note = Note {
+        id: 1,
+        text: "hello".to_string(),
+        created_at: "2024-01-01T00:00:00Z".to_string(),
+        updated_at: "bogus".to_string(),
+        tags: Vec::new(),
+    };
+    let err = validate_note(&note).expect_err("expected error");
+    assert_eq!(err, "invalid updated_at timestamp");
+}
+
+#[test]
+fn validate_note_rejects_empty_tag() {
+    let note = Note {
+        id: 1,
+        text: "hello".to_string(),
+        created_at: "2024-01-01T00:00:00Z".to_string(),
+        updated_at: String::new(),
+        tags: vec!["  ".to_string()],
+    };
+    let err = validate_note(&note).expect_err("expected error");
+    assert_eq!(err, "tag cannot be empty");
+}
+
+#[test]
+fn add_note_rejects_oversized_text() {
+    let _guard = lock_test();
+    let _env = TestEnv::new();
+
+    let big = "x".repeat(scriv::MAX_NOTE_BYTES + 1);
+    let err = add_note(&big).expect_err("expected size error");
+    assert_eq!(err, "note text exceeds 1 MB limit");
+    assert!(load_notes().expect("load notes").is_empty());
+}
+
+#[test]
+fn edit_note_rejects_oversized_text() {
+    let _guard = lock_test();
+    let _env = TestEnv::new();
+
+    add_note("original").expect("add");
+    let big = "x".repeat(scriv::MAX_NOTE_BYTES + 1);
+    let err = edit_note(1, &big).expect_err("expected size error");
+    assert_eq!(err, "note text exceeds 1 MB limit");
+    assert_eq!(get_note(1).expect("get note").text, "original");
+}
+
+#[test]
+fn parse_id_accepts_positive_integer() {
+    assert_eq!(parse_id("42").expect("parse id"), 42);
+}
+
+#[test]
+fn parse_id_rejects_zero() {
+    let err = parse_id("0").expect_err("expected error");
+    assert_eq!(err, "id must be a positive integer");
+}
+
+#[test]
+fn parse_id_rejects_non_integer() {
+    let err = parse_id("abc").expect_err("expected error");
+    assert_eq!(err, "id must be a positive integer");
+}
+
+#[test]
+fn parse_import_ndjson_parses_multiple_notes() {
+    let input = Cursor::new(concat!(
+        "{\"id\":1,\"text\":\"one\",\"created_at\":\"2024-01-01T00:00:00Z\"}\n",
+        "{\"id\":2,\"text\":\"two\",\"created_at\":\"2024-01-02T00:00:00Z\"}\n",
+    ));
+    let notes = parse_import_ndjson(input).expect("parse import");
+    assert_eq!(notes.len(), 2);
+    assert_eq!(notes[1].text, "two");
+}
+
+#[test]
+fn parse_import_ndjson_skips_blank_lines() {
+    let input = Cursor::new(concat!(
+        "{\"id\":1,\"text\":\"one\",\"created_at\":\"2024-01-01T00:00:00Z\"}\n",
+        "\n",
+        "   \n",
+        "{\"id\":2,\"text\":\"two\",\"created_at\":\"2024-01-02T00:00:00Z\"}\n",
+    ));
+    let notes = parse_import_ndjson(input).expect("parse import");
+    assert_eq!(notes.len(), 2);
+}
+
+#[test]
+fn parse_import_ndjson_empty_input_returns_empty() {
+    let input = Cursor::new("");
+    let notes = parse_import_ndjson(input).expect("parse import");
+    assert!(notes.is_empty());
+}
+
+#[test]
+fn parse_import_ndjson_reports_line_on_invalid_json() {
+    let input = Cursor::new(concat!(
+        "{\"id\":1,\"text\":\"one\",\"created_at\":\"2024-01-01T00:00:00Z\"}\n",
+        "not json\n",
+    ));
+    let err = parse_import_ndjson(input).expect_err("expected error");
+    assert!(err.starts_with("line 2: invalid JSON"));
+}
+
+#[test]
+fn parse_import_ndjson_reports_line_on_invalid_note() {
+    let input = Cursor::new("{\"id\":1,\"text\":\"\",\"created_at\":\"2024-01-01T00:00:00Z\"}\n");
+    let err = parse_import_ndjson(input).expect_err("expected error");
+    assert_eq!(err, "line 1: note text cannot be empty");
 }
 
 #[test]
