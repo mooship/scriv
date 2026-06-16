@@ -4,12 +4,13 @@ use chrono::{DateTime, Utc};
 use scriv::{
     ListOptions, Note, add_note, append_note, clear_notes, collect_tags, edit_note, get_note,
     has_active_password, highlight_match, import_notes, list_notes, load_notes, note_age,
-    notes_file_is_encrypted, read_stdin_text, remove_notes, sanitize_display, search_notes,
-    set_active_password, set_active_password_zeroized, tag_note, untag_note, validate_note,
+    notes_file_is_encrypted, parse_id, parse_import_ndjson, read_stdin_text, remove_notes,
+    sanitize_display, search_notes, set_active_password, set_active_password_zeroized, tag_note,
+    untag_note,
 };
 use std::collections::BTreeMap;
 use std::env;
-use std::io::{self, BufRead, Read, Write};
+use std::io::{self, Read, Write};
 use zeroize::Zeroizing;
 
 const USAGE_TEMPLATE: &str = "scriv - Fast local note manager
@@ -74,17 +75,6 @@ fn print_usage() {
 fn fatal(msg: &str) -> ! {
     eprintln!("Error: {}", msg);
     std::process::exit(1);
-}
-
-/// Parse a required positive note id.
-fn parse_id(s: &str) -> Result<u64, String> {
-    let id = s
-        .parse::<u64>()
-        .map_err(|_| "id must be a positive integer".to_string())?;
-    if id == 0 {
-        return Err("id must be a positive integer".to_string());
-    }
-    Ok(id)
 }
 
 /// True when stdin is piped rather than interactive.
@@ -330,29 +320,8 @@ fn cmd_export() -> Result<(), String> {
     Ok(())
 }
 
-const MAX_IMPORT_BYTES: u64 = 50 * 1024 * 1024;
-
 fn cmd_import<R: Read>(reader: R) -> Result<(), String> {
-    let mut incoming = Vec::<Note>::new();
-    let br = io::BufReader::new(reader.take(MAX_IMPORT_BYTES + 1));
-    let mut total_bytes: u64 = 0;
-
-    for (idx, line) in br.lines().enumerate() {
-        let line = line.map_err(|e| e.to_string())?;
-        total_bytes += line.len() as u64 + 1;
-        if total_bytes > MAX_IMPORT_BYTES {
-            return Err("import input exceeds 50 MB limit".to_string());
-        }
-        let trimmed = line.trim();
-        if trimmed.is_empty() {
-            continue;
-        }
-        let note: Note = serde_json::from_str(trimmed)
-            .map_err(|e| format!("line {}: invalid JSON: {}", idx + 1, e))?;
-        validate_note(&note).map_err(|e| format!("line {}: {}", idx + 1, e))?;
-        incoming.push(note);
-    }
-
+    let incoming = parse_import_ndjson(reader)?;
     if incoming.is_empty() {
         println!("No notes to import.");
         return Ok(());
