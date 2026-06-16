@@ -106,6 +106,14 @@ fn read_stdin_text_whitespace_only_returns_error() {
 }
 
 #[test]
+fn read_stdin_text_over_limit_returns_error() {
+    let oversized = vec![b'a'; 10 * 1024 * 1024 + 1];
+    let input = Cursor::new(oversized);
+    let err = read_stdin_text(input).expect_err("expected limit error");
+    assert_eq!(err, "stdin input exceeds 10 MB limit");
+}
+
+#[test]
 fn read_stdin_text_strips_crlf() {
     let input = Cursor::new(b"hello\r\nworld\r\n");
     let result = read_stdin_text(input).expect("read stdin");
