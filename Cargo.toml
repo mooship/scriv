@@ -13,7 +13,7 @@ keywords = ["notes", "cli", "productivity", "local"]
 categories = ["command-line-utilities"]
 
 [dependencies]
-aes-gcm = "0.10"
+aes-gcm = "0.11"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 once_cell = "1.20"
 pbkdf2 = "0.13"
