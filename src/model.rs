@@ -1,3 +1,5 @@
+//! Core data types shared across storage, note operations, and the CLI.
+
 use serde::{Deserialize, Serialize};
 
 /// Persisted note record stored as NDJSON.

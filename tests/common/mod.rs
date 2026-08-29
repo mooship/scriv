@@ -12,7 +12,10 @@ pub fn lock_test() -> MutexGuard<'static, ()> {
     TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner())
 }
 
+/// Redirects note storage to a temp file and clears the active password for
+/// the duration of a test, restoring both global states on drop.
 pub struct TestEnv {
+    /// Held only to keep the temp directory alive for the test's duration.
     pub _dir: TempDir,
 }
 

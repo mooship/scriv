@@ -7,6 +7,9 @@ mod model;
 mod notes;
 mod storage;
 
+/// Encryption internals, exported for the `scriv` binary and integration
+/// tests but hidden from generated docs since they are not part of the
+/// crate's intended public API.
 #[doc(hidden)]
 pub use crypto::{ENCRYPTED_MAGIC, decrypt_notes, encrypt_notes, is_encrypted_data};
 pub use format::{highlight_match, note_age, read_stdin_text, sanitize_display};
