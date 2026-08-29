@@ -13,11 +13,14 @@ static NOTES_PATH_OVERRIDE: Lazy<Mutex<Option<PathBuf>>> = Lazy::new(|| Mutex::n
 static ACTIVE_PASSWORD: Lazy<Mutex<Zeroizing<String>>> =
     Lazy::new(|| Mutex::new(Zeroizing::new(String::new())));
 
+/// Lock `m`, panicking if a prior panic while holding the lock poisoned it.
 fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     m.lock().expect("lock poisoned")
 }
 
-/// Override notes path for tests and controlled environments.
+/// Override the notes path for tests and controlled environments.
+///
+/// Pass `None` to restore the default platform-specific path from `notes_path`.
 pub fn set_notes_path_override(path: Option<PathBuf>) {
     *lock(&NOTES_PATH_OVERRIDE) = path;
 }
@@ -51,7 +54,12 @@ pub fn has_active_password() -> bool {
     !lock(&ACTIVE_PASSWORD).is_empty()
 }
 
-/// Resolve the platform-specific notes file path.
+/// Resolve the notes file path.
+///
+/// Returns the override set via `set_notes_path_override` if one is active;
+/// otherwise resolves `<platform data dir>/scriv/notes.json`, using
+/// `APPDATA` on Windows, `~/Library/Application Support` on macOS, and
+/// `$XDG_DATA_HOME` (falling back to `~/.local/share`) elsewhere.
 pub fn notes_path() -> PathBuf {
     if let Some(p) = lock(&NOTES_PATH_OVERRIDE).clone() {
         return p;
