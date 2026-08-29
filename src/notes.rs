@@ -95,10 +95,12 @@ fn now_timestamp() -> String {
     Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string()
 }
 
+/// Standard "not found" error message for a missing note id.
 fn note_not_found(id: u64) -> String {
     format!("no note with id {}", id)
 }
 
+/// Compute the next id after `max_id`, erroring instead of wrapping on overflow.
 fn next_id(max_id: u64) -> Result<u64, String> {
     max_id
         .checked_add(1)
@@ -214,7 +216,8 @@ pub fn edit_note(id: u64, text: &str) -> Result<Note, String> {
     })
 }
 
-/// Append text to a note and set `updated_at`.
+/// Append text to a note's existing text, separated by a space, and set
+/// `updated_at`. Fails if the combined text would exceed the size limit.
 pub fn append_note(id: u64, text: &str) -> Result<Note, String> {
     if text.trim().is_empty() {
         return Err("note text cannot be empty".to_string());
