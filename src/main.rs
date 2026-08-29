@@ -125,12 +125,14 @@ fn load_notes_clearing_password_on_err() -> Result<Vec<Note>, String> {
     load_notes().inspect_err(|_| set_active_password(String::new()))
 }
 
+/// Add a new note and print its assigned id.
 fn cmd_add(text: String) -> Result<(), String> {
     let note = add_note(&text)?;
     println!("Added {}", display_note(&note));
     Ok(())
 }
 
+/// Print notes matching `opts`, truncating long text unless `opts.full` is set.
 fn cmd_list(opts: ListOptions) -> Result<(), String> {
     let notes = list_notes(&opts)?;
     if notes.is_empty() {
@@ -155,6 +157,7 @@ fn cmd_list(opts: ListOptions) -> Result<(), String> {
     Ok(())
 }
 
+/// Print a note's full text plus its created/updated dates and tags.
 fn cmd_view(id_str: &str) -> Result<(), String> {
     let id = parse_id(id_str)?;
     let note = get_note(id)?;
@@ -181,6 +184,7 @@ fn cmd_view(id_str: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// Remove the given notes by id, printing each removed note.
 fn cmd_done(id_strs: &[String], force: bool) -> Result<(), String> {
     let ids = id_strs
         .iter()
@@ -195,6 +199,7 @@ fn cmd_done(id_strs: &[String], force: bool) -> Result<(), String> {
     Ok(())
 }
 
+/// Replace a note's text by id.
 fn cmd_edit(id_str: &str, text: String) -> Result<(), String> {
     let id = parse_id(id_str)?;
     let note = edit_note(id, &text)?;
@@ -202,6 +207,7 @@ fn cmd_edit(id_str: &str, text: String) -> Result<(), String> {
     Ok(())
 }
 
+/// Add one or more tags to a note by id.
 fn cmd_tag(id_str: &str, tags: &[String]) -> Result<(), String> {
     let id = parse_id(id_str)?;
     let note = tag_note(id, tags)?;
@@ -213,6 +219,8 @@ fn cmd_tag(id_str: &str, tags: &[String]) -> Result<(), String> {
     Ok(())
 }
 
+/// Remove a tag from a note by id, printing a distinct message if the tag was
+/// never present rather than silently no-op'ing.
 fn cmd_untag(id_str: &str, tag: &str) -> Result<(), String> {
     let id = parse_id(id_str)?;
     let before = get_note(id)?;
@@ -237,6 +245,7 @@ fn cmd_untag(id_str: &str, tag: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// Print all tags in alphabetical order with their usage counts.
 fn cmd_tags() -> Result<(), String> {
     let notes = load_notes()?;
     let counts = collect_tags(&notes);
@@ -258,6 +267,7 @@ fn cmd_tags() -> Result<(), String> {
     Ok(())
 }
 
+/// Append text to a note's existing text by id.
 fn cmd_append(id_str: &str, text: String) -> Result<(), String> {
     let id = parse_id(id_str)?;
     let note = append_note(id, &text)?;
@@ -265,6 +275,7 @@ fn cmd_append(id_str: &str, text: String) -> Result<(), String> {
     Ok(())
 }
 
+/// Remove all notes after an interactive y/N confirmation, unless `force` skips it.
 fn cmd_clear(force: bool) -> Result<(), String> {
     let notes = load_notes()?;
     if notes.is_empty() {
@@ -289,6 +300,7 @@ fn cmd_clear(force: bool) -> Result<(), String> {
     Ok(())
 }
 
+/// Print notes matching `query`, highlighting matches in color when stdout is a terminal.
 fn cmd_search(query: &str) -> Result<(), String> {
     let results = search_notes(query)?;
     if results.is_empty() {
@@ -309,6 +321,7 @@ fn cmd_search(query: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// Print all notes to stdout as NDJSON, one JSON object per line.
 fn cmd_export() -> Result<(), String> {
     let notes = load_notes()?;
     for note in notes {
@@ -320,6 +333,7 @@ fn cmd_export() -> Result<(), String> {
     Ok(())
 }
 
+/// Read NDJSON notes from `reader` and append them to the store.
 fn cmd_import<R: Read>(reader: R) -> Result<(), String> {
     let incoming = parse_import_ndjson(reader)?;
     if incoming.is_empty() {
@@ -333,6 +347,8 @@ fn cmd_import<R: Read>(reader: R) -> Result<(), String> {
     Ok(())
 }
 
+/// Set or change the notes password, decrypting with the current password
+/// first if the store is already encrypted, then re-saving under the new one.
 fn cmd_lock() -> Result<(), String> {
     let notes = if notes_file_is_encrypted() {
         let current = prompt_password("Current password: ")?;
@@ -357,6 +373,8 @@ fn cmd_lock() -> Result<(), String> {
     Ok(())
 }
 
+/// Remove password protection by decrypting with the current password and
+/// re-saving the store in plaintext.
 fn cmd_unlock() -> Result<(), String> {
     if !notes_file_is_encrypted() {
         println!("Notes are not password protected.");
