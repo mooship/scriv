@@ -1,5 +1,8 @@
 version: 2
 updates:
+  # The crypto stack (AES-GCM, PBKDF2, RNG, hashing, zeroization) and the
+  # password-prompt input path get a faster, separate weekly PR -- this
+  # crate's headline feature is note encryption.
   - package-ecosystem: "cargo"
     directory: "/"
     schedule:
@@ -8,14 +11,37 @@ updates:
       time: "09:00"
       timezone: "Africa/Johannesburg"
     groups:
+      cargo-critical:
+        patterns:
+          - "*"
+    allow:
+      - dependency-name: "aes-gcm"
+      - dependency-name: "pbkdf2"
+      - dependency-name: "rand"
+      - dependency-name: "sha2"
+      - dependency-name: "zeroize"
+      - dependency-name: "rpassword"
+  - package-ecosystem: "cargo"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+      time: "09:00"
+      timezone: "Africa/Johannesburg"
+    groups:
       all:
         patterns:
           - "*"
+    ignore:
+      - dependency-name: "aes-gcm"
+      - dependency-name: "pbkdf2"
+      - dependency-name: "rand"
+      - dependency-name: "sha2"
+      - dependency-name: "zeroize"
+      - dependency-name: "rpassword"
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "weekly"
-      day: "saturday"
+      interval: "monthly"
       time: "09:00"
       timezone: "Africa/Johannesburg"
     groups:
