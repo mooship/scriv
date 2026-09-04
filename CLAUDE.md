@@ -27,11 +27,18 @@ CI (`.github/workflows/ci.yml`) runs, on push to `main`, on every PR, and weekly
 
 - **Never publish (`cargo publish`) or run destructive storage operations without explicit permission from the user.** Always ask first and wait for confirmation.
 
-## Code style
+## Code Style
 
 - **No inline comments** — never use `//` comments on the same line as code. Use `///` documentation comments where genuinely useful.
+- **British English spelling** in user-facing copy (CLI help text, error messages, `README.md`) — "colour", "organise" — code identifiers stay standard English.
 - Run `cargo fmt` before committing; there's no `rustfmt.toml`, so behavior can shift slightly with rustfmt version (CI floats `dtolnay/rust-toolchain@stable`, there's no pinned toolchain file).
 - `cargo clippy -- -D warnings` must pass locally — CI will not catch it if it doesn't (see caveat above).
+
+## Engineering Principles
+
+- **TDD.** Write the failing integration test in `tests/` first, then the implementation. Anything new that touches storage or the active password follows the `lock_test()`/`TestEnv::new()` pattern below from the start, not bolted on after.
+- **DRY.** Route new user-facing output through `sanitize_display` and thread new password/plaintext values through `Zeroizing` — both exist precisely so new code doesn't reimplement escaping or zeroing.
+- **KISS / YAGNI.** This is a small, flat, single-user CLI with no daemon and no network calls — prefer a plain function in the matching `src/*.rs` file over a new abstraction layer, and don't add config surface or feature flags for a use case nobody has asked for.
 
 ## Testing
 
