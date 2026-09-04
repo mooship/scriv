@@ -132,7 +132,53 @@ scriv export > backup.ndjson
 # Import notes from NDJSON (IDs are reassigned to avoid conflicts)
 scriv import < backup.ndjson
 # Imported 3 notes.
+
+# Password-protect your notes (prompts for a new password twice)
+scriv lock
+# New password:
+# Confirm password:
+# Notes are now password protected.
+
+# Once locked, every other command prompts for the password first
+scriv list
+# Password:
+# [1] (2d) fix the auth bug
+# 1 notes.
+
+# Change the password (prompts for the current one first, then a new one)
+scriv lock
+# Current password:
+# New password:
+# Confirm password:
+# Notes are now password protected.
+
+# Remove password protection (prompts for the current password)
+scriv unlock
+# Password:
+# Password protection removed.
 ```
+
+## Password Protection
+
+`scriv lock` sets or changes the password used to encrypt your notes file. If
+the file is not yet encrypted, it only prompts for a new password (entered
+twice, to confirm). If it's already encrypted, it first prompts for the
+current password to decrypt the existing notes before re-encrypting them
+under the new one. An empty new password, or a confirmation that doesn't
+match, is rejected without changing anything.
+
+`scriv unlock` removes password protection, decrypting the notes file and
+saving it as plain NDJSON. If the notes aren't currently encrypted, it prints
+a message and does nothing.
+
+Once a notes file is encrypted, every other command — `add`, `list`, `edit`,
+`clear`, `export`, and so on — prompts for the password before it can read or
+write the file. Only `lock`, `unlock`, `--help`, and `--version` skip that
+prompt.
+
+There is no password recovery. If you forget your password, the notes in
+that file cannot be decrypted — keep a plaintext export (`scriv export`)
+somewhere safe if that risk matters to you, and take it *before* locking.
 
 ## Shell Alias
 
@@ -168,15 +214,24 @@ s done 1
 
 ## Storage
 
-Notes are saved to a local NDJSON file (or encrypted bytes when locked) - nothing leaves your machine.
+Notes are saved to a local NDJSON file (one JSON object per line), or as
+encrypted bytes when locked — nothing leaves your machine.
 
 | Platform | Path |
 |---|---|
-| Linux / WSL | `~/.local/share/scriv/notes.json` |
+| Linux / WSL | `$XDG_DATA_HOME/scriv/notes.json`, falling back to `~/.local/share/scriv/notes.json` |
 | macOS | `~/Library/Application Support/scriv/notes.json` |
 | Windows | `%APPDATA%\scriv\notes.json` |
 
-The file is created automatically on first use.
+The file is created automatically on first use. Writes are atomic (via a
+temporary file in the same directory), so an interrupted write can't corrupt
+existing notes.
+
+### Limits
+
+- A single note's text: 1 MiB
+- Piped stdin input (`add`/`edit`/`append`): 10 MB
+- `import` input: 50 MB
 
 ## License
 
