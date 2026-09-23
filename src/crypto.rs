@@ -15,6 +15,10 @@ const SALT_LEN: usize = 32;
 const NONCE_LEN: usize = 12;
 
 /// Encrypt NDJSON note bytes using AES-256-GCM and PBKDF2 key derivation.
+///
+/// `Nonce::from_slice` is deprecated by the pinned `hybrid-array 0.4.12`
+/// (pulled in via `aes-gcm`); bumping past it is out of scope for this pass.
+#[allow(deprecated)]
 pub fn encrypt_notes(plaintext: &[u8], password: &str) -> Result<Vec<u8>, String> {
     let mut rng = rand::rng();
     let mut salt = [0_u8; SALT_LEN];
@@ -41,6 +45,10 @@ pub fn encrypt_notes(plaintext: &[u8], password: &str) -> Result<Vec<u8>, String
 }
 
 /// Decrypt note bytes previously produced by `encrypt_notes`.
+///
+/// `Nonce::from_slice` is deprecated by the pinned `hybrid-array 0.4.12`
+/// (pulled in via `aes-gcm`); bumping past it is out of scope for this pass.
+#[allow(deprecated)]
 pub fn decrypt_notes(data: &[u8], password: &str) -> Result<Vec<u8>, String> {
     let min_len = ENCRYPTED_MAGIC.len() + SALT_LEN + NONCE_LEN + 16;
     if data.len() < min_len || &data[0..ENCRYPTED_MAGIC.len()] != ENCRYPTED_MAGIC {
