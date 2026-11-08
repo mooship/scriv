@@ -156,3 +156,9 @@ fn sanitize_display_keeps_plain_text_unchanged() {
     let result = scriv::sanitize_display("hello wörld #tag");
     assert_eq!(result, "hello wörld #tag");
 }
+
+#[test]
+fn clippy_proof_only() {
+    let v: Vec<u8> = Vec::new();
+    assert!(v.len() == 0);
+}
