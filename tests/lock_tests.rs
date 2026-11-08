@@ -1,7 +1,7 @@
 //! Integration tests for setting, changing, and removing the notes password.
 
 mod common;
-use common::{TestEnv, lock_test};
+use common::{TestEnv, lock_test, password};
 use scriv::{
     add_note, has_active_password, load_notes, lock_notes, notes_file_is_encrypted, notes_path,
     set_active_password, unlock_notes,
@@ -33,10 +33,10 @@ impl Script {
     }
 }
 
-/// Encrypt the current store under `password`, then forget it the way a fresh
+/// Encrypt the current store under `pw`, then forget it the way a fresh
 /// process would.
-fn lock_with(password: &str) {
-    let mut script = Script::new(&[password, password]);
+fn lock_with(pw: &str) {
+    let mut script = Script::new(&[pw, pw]);
     lock_notes(|message| script.prompt(message)).expect("lock notes");
     set_active_password(String::new());
 }
@@ -46,8 +46,9 @@ fn lock_notes_encrypts_a_plain_store() {
     let _guard = lock_test();
     let _env = TestEnv::new();
     add_note("keep me private").expect("add note");
+    let pw = password("encrypt");
 
-    let mut script = Script::new(&["hunter2", "hunter2"]);
+    let mut script = Script::new(&[&pw, &pw]);
     lock_notes(|message| script.prompt(message)).expect("lock notes");
 
     assert_eq!(script.asked, ["New password: ", "Confirm password: "]);
@@ -79,8 +80,9 @@ fn lock_notes_rejects_a_mismatched_confirmation() {
     let _guard = lock_test();
     let _env = TestEnv::new();
     add_note("plain").expect("add note");
+    let (first, second) = (password("first"), password("second"));
 
-    let mut script = Script::new(&["one", "two"]);
+    let mut script = Script::new(&[&first, &second]);
     let err = lock_notes(|message| script.prompt(message)).expect_err("mismatch");
 
     assert_eq!(err, "passwords do not match");
@@ -94,21 +96,22 @@ fn lock_notes_changes_the_password_of_an_encrypted_store() {
     let _guard = lock_test();
     let _env = TestEnv::new();
     add_note("shared secret").expect("add note");
-    lock_with("old");
+    let (old, new) = (password("old"), password("new"));
+    lock_with(&old);
 
-    let mut script = Script::new(&["old", "new", "new"]);
+    let mut script = Script::new(&[&old, &new, &new]);
     lock_notes(|message| script.prompt(message)).expect("change password");
 
     assert_eq!(
         script.asked,
         ["Current password: ", "New password: ", "Confirm password: "]
     );
-    set_active_password("old".to_string());
+    set_active_password(old);
     assert_eq!(
         load_notes().expect_err("old password must stop working"),
         "incorrect password"
     );
-    set_active_password("new".to_string());
+    set_active_password(new);
     assert_eq!(load_notes().expect("load notes")[0].text, "shared secret");
 }
 
@@ -117,16 +120,17 @@ fn lock_notes_with_the_wrong_current_password_changes_nothing() {
     let _guard = lock_test();
     let _env = TestEnv::new();
     add_note("shared secret").expect("add note");
-    lock_with("right");
+    let (right, wrong) = (password("right"), password("wrong"));
+    lock_with(&right);
 
-    let mut script = Script::new(&["wrong"]);
+    let mut script = Script::new(&[&wrong]);
     let err = lock_notes(|message| script.prompt(message)).expect_err("wrong password");
 
     assert_eq!(err, "incorrect password");
     assert_eq!(script.asked, ["Current password: "]);
     assert!(!has_active_password());
     assert!(notes_file_is_encrypted());
-    set_active_password("right".to_string());
+    set_active_password(right);
     assert_eq!(load_notes().expect("load notes")[0].text, "shared secret");
 }
 
@@ -135,12 +139,13 @@ fn lock_notes_stops_when_a_prompt_fails() {
     let _guard = lock_test();
     let _env = TestEnv::new();
     add_note("plain").expect("add note");
+    let pw = password("partial");
 
     let mut no_answers = Script::new(&[]);
     let err = lock_notes(|message| no_answers.prompt(message)).expect_err("new password prompt");
     assert_eq!(err, "no scripted answer");
 
-    let mut one_answer = Script::new(&["pw"]);
+    let mut one_answer = Script::new(&[&pw]);
     let err = lock_notes(|message| one_answer.prompt(message)).expect_err("confirm prompt");
     assert_eq!(err, "no scripted answer");
     assert_eq!(one_answer.asked, ["New password: ", "Confirm password: "]);
@@ -154,13 +159,28 @@ fn lock_notes_stops_when_the_current_password_prompt_fails() {
     let _guard = lock_test();
     let _env = TestEnv::new();
     add_note("shared secret").expect("add note");
-    lock_with("pw");
+    lock_with(&password("current"));
 
     let mut script = Script::new(&[]);
     let err = lock_notes(|message| script.prompt(message)).expect_err("current password prompt");
 
     assert_eq!(err, "no scripted answer");
     assert!(notes_file_is_encrypted());
+}
+
+#[test]
+fn lock_notes_refuses_a_plain_store_it_cannot_parse() {
+    let _guard = lock_test();
+    let _env = TestEnv::new();
+    fs::write(notes_path(), "not json").expect("write corrupted file");
+    let pw = password("corrupted");
+
+    let mut script = Script::new(&[&pw, &pw]);
+    let err = lock_notes(|message| script.prompt(message)).expect_err("corrupted store");
+
+    assert!(err.contains("notes file is corrupted"), "unexpected: {err}");
+    assert!(script.asked.is_empty());
+    assert!(!notes_file_is_encrypted());
 }
 
 #[test]
@@ -182,9 +202,10 @@ fn unlock_notes_removes_password_protection() {
     let _guard = lock_test();
     let _env = TestEnv::new();
     add_note("shared secret").expect("add note");
-    lock_with("pw");
+    let pw = password("unlock");
+    lock_with(&pw);
 
-    let mut script = Script::new(&["pw"]);
+    let mut script = Script::new(&[&pw]);
     let unlocked = unlock_notes(|message| script.prompt(message)).expect("unlock");
 
     assert!(unlocked);
@@ -199,9 +220,10 @@ fn unlock_notes_with_the_wrong_password_keeps_the_store_encrypted() {
     let _guard = lock_test();
     let _env = TestEnv::new();
     add_note("shared secret").expect("add note");
-    lock_with("right");
+    let (right, wrong) = (password("right"), password("wrong"));
+    lock_with(&right);
 
-    let mut script = Script::new(&["wrong"]);
+    let mut script = Script::new(&[&wrong]);
     let err = unlock_notes(|message| script.prompt(message)).expect_err("wrong password");
 
     assert_eq!(err, "incorrect password");
@@ -214,7 +236,7 @@ fn unlock_notes_stops_when_the_prompt_fails() {
     let _guard = lock_test();
     let _env = TestEnv::new();
     add_note("shared secret").expect("add note");
-    lock_with("pw");
+    lock_with(&password("prompt"));
 
     let mut script = Script::new(&[]);
     let err = unlock_notes(|message| script.prompt(message)).expect_err("password prompt");
@@ -223,34 +245,21 @@ fn unlock_notes_stops_when_the_prompt_fails() {
     assert!(notes_file_is_encrypted());
 }
 
-#[test]
-fn lock_notes_refuses_a_plain_store_it_cannot_parse() {
-    let _guard = lock_test();
-    let _env = TestEnv::new();
-    fs::write(notes_path(), "not json").expect("write corrupted file");
-
-    let mut script = Script::new(&["pw", "pw"]);
-    let err = lock_notes(|message| script.prompt(message)).expect_err("corrupted store");
-
-    assert!(err.contains("notes file is corrupted"), "unexpected: {err}");
-    assert!(script.asked.is_empty());
-    assert!(!notes_file_is_encrypted());
-}
-
 #[cfg(unix)]
 #[test]
 fn unlock_notes_reports_a_data_directory_it_cannot_write_into() {
     let _guard = lock_test();
     let _env = TestEnv::new();
     add_note("shared secret").expect("add note");
-    lock_with("pw");
+    let pw = password("read-only");
+    lock_with(&pw);
     let data_dir = notes_path().parent().expect("data dir").to_path_buf();
     let Some(_read_only) = common::ReadOnlyDir::new(&data_dir) else {
         eprintln!("skipped: permission checks do not apply to this user");
         return;
     };
 
-    let mut script = Script::new(&["pw"]);
+    let mut script = Script::new(&[&pw]);
     let err = unlock_notes(|message| script.prompt(message)).expect_err("read-only directory");
 
     assert!(err.starts_with("cannot write to"), "unexpected: {err}");

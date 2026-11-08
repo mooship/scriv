@@ -4,6 +4,7 @@
 //! process, so none of them touch this process's storage globals or need
 //! `lock_test()`.
 
+mod common;
 use scriv::Note;
 use std::fs;
 use std::io::{ErrorKind, Write};
@@ -610,8 +611,9 @@ mod password_prompts {
         let path = cli.notes_file();
         fs::create_dir_all(path.parent().expect("notes dir")).expect("create data dir");
         let ndjson = serde_json::to_string(&note(1, "secret", OLDEST)).expect("serialise note");
+        let pw = common::password("cli");
         let encrypted =
-            scriv::encrypt_notes(format!("{ndjson}\n").as_bytes(), "pw").expect("encrypt");
+            scriv::encrypt_notes(format!("{ndjson}\n").as_bytes(), &pw).expect("encrypt");
         fs::write(&path, &encrypted).expect("seed encrypted notes");
         encrypted
     }

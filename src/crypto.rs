@@ -26,12 +26,10 @@ fn cipher_for(password: &str, salt: &[u8]) -> Aes256Gcm {
 /// Encrypt NDJSON note bytes using AES-256-GCM and PBKDF2 key derivation.
 pub fn encrypt_notes(plaintext: &[u8], password: &str) -> Result<Vec<u8>, String> {
     let mut rng = rand::rng();
-    let mut salt = [0_u8; SALT_LEN];
-    rng.fill(&mut salt);
+    let salt: [u8; SALT_LEN] = rng.random();
 
     let cipher = cipher_for(password, &salt);
-    let mut nonce = [0_u8; NONCE_LEN];
-    rng.fill(&mut nonce);
+    let nonce: [u8; NONCE_LEN] = rng.random();
 
     let ciphertext = cipher
         .encrypt(&Nonce::<Aes256Gcm>::from(nonce), plaintext)
