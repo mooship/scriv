@@ -76,8 +76,8 @@ impl Drop for ReadOnlyDir {
     }
 }
 
-/// A password that is unique to this process, built at run time so that no
-/// secret literal ends up in the tests.
-pub fn password(label: &str) -> String {
-    format!("{label}-{}", std::process::id())
+/// A random password, generated at run time so that no secret literal ends up
+/// in the tests.
+pub fn password() -> String {
+    format!("{:016x}", rand::random::<u64>())
 }

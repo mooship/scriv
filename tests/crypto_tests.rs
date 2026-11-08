@@ -4,7 +4,7 @@ mod common;
 use aes_gcm::Aes256Gcm;
 use aes_gcm::aead::{Aead, KeyInit, Nonce};
 use common::password;
-use pbkdf2::pbkdf2_hmac;
+use pbkdf2::pbkdf2_hmac_array;
 use scriv::{ENCRYPTED_MAGIC, decrypt_notes, encrypt_notes, is_encrypted_data};
 use sha2::Sha256;
 
@@ -52,14 +52,12 @@ fn is_encrypted_data_detects_encrypted_and_plain() {
 
 /// Derive the AES key the way the documented file format does.
 fn derive_key(password: &str, salt: &[u8]) -> [u8; 32] {
-    let mut key = [0_u8; 32];
-    pbkdf2_hmac::<Sha256>(password.as_bytes(), salt, 600_000, &mut key);
-    key
+    pbkdf2_hmac_array::<Sha256, 32>(password.as_bytes(), salt, 600_000)
 }
 
 #[test]
 fn encrypt_notes_output_follows_the_documented_layout() {
-    let pw = password("layout");
+    let pw = password();
     let plaintext = b"layout check\n";
     let encrypted = encrypt_notes(plaintext, &pw).expect("encrypt");
 
@@ -78,7 +76,7 @@ fn encrypt_notes_output_follows_the_documented_layout() {
 
 #[test]
 fn decrypt_notes_reads_a_file_built_independently() {
-    let pw = password("hand");
+    let pw = password();
     let plaintext = b"built by hand\n";
     let salt: [u8; 32] = rand::random();
     let nonce: [u8; 12] = rand::random();
@@ -97,7 +95,7 @@ fn decrypt_notes_reads_a_file_built_independently() {
 
 #[test]
 fn decrypt_rejects_tampered_ciphertext() {
-    let pw = password("tamper");
+    let pw = password();
     let mut encrypted = encrypt_notes(b"tamper check\n", &pw).expect("encrypt");
     let last = encrypted.len() - 1;
     encrypted[last] ^= 0x01;
@@ -108,7 +106,7 @@ fn decrypt_rejects_tampered_ciphertext() {
 
 #[test]
 fn encrypting_twice_uses_a_fresh_salt_and_nonce() {
-    let pw = password("fresh");
+    let pw = password();
     let first = encrypt_notes(b"same input\n", &pw).expect("encrypt");
     let second = encrypt_notes(b"same input\n", &pw).expect("encrypt");
 
