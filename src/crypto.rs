@@ -1,7 +1,7 @@
 //! Encryption helpers for notes-at-rest support.
 
-use aes_gcm::aead::{Aead, KeyInit};
-use aes_gcm::{Aes256Gcm, Nonce};
+use aes_gcm::Aes256Gcm;
+use aes_gcm::aead::{Aead, KeyInit, Nonce};
 use pbkdf2::pbkdf2_hmac;
 use rand::RngExt;
 use sha2::Sha256;
@@ -15,10 +15,6 @@ const SALT_LEN: usize = 32;
 const NONCE_LEN: usize = 12;
 
 /// Encrypt NDJSON note bytes using AES-256-GCM and PBKDF2 key derivation.
-///
-/// `Nonce::from_slice` is deprecated by the pinned `hybrid-array 0.4.12`
-/// (pulled in via `aes-gcm`); bumping past it is out of scope for this pass.
-#[allow(deprecated)]
 pub fn encrypt_notes(plaintext: &[u8], password: &str) -> Result<Vec<u8>, String> {
     let mut rng = rand::rng();
     let mut salt = [0_u8; SALT_LEN];
@@ -32,7 +28,7 @@ pub fn encrypt_notes(plaintext: &[u8], password: &str) -> Result<Vec<u8>, String
     rng.fill(&mut nonce);
 
     let ciphertext = cipher
-        .encrypt(Nonce::from_slice(&nonce), plaintext)
+        .encrypt(&Nonce::<Aes256Gcm>::from(nonce), plaintext)
         .map_err(|e| e.to_string())?;
 
     let mut out =
@@ -45,10 +41,6 @@ pub fn encrypt_notes(plaintext: &[u8], password: &str) -> Result<Vec<u8>, String
 }
 
 /// Decrypt note bytes previously produced by `encrypt_notes`.
-///
-/// `Nonce::from_slice` is deprecated by the pinned `hybrid-array 0.4.12`
-/// (pulled in via `aes-gcm`); bumping past it is out of scope for this pass.
-#[allow(deprecated)]
 pub fn decrypt_notes(data: &[u8], password: &str) -> Result<Vec<u8>, String> {
     let min_len = ENCRYPTED_MAGIC.len() + SALT_LEN + NONCE_LEN + 16;
     if data.len() < min_len || &data[0..ENCRYPTED_MAGIC.len()] != ENCRYPTED_MAGIC {
@@ -66,8 +58,9 @@ pub fn decrypt_notes(data: &[u8], password: &str) -> Result<Vec<u8>, String> {
     pbkdf2_hmac::<Sha256>(password.as_bytes(), salt, PBKDF2_ITERS, &mut key);
 
     let cipher = Aes256Gcm::new_from_slice(&key).map_err(|e| e.to_string())?;
+    let nonce = <&Nonce<Aes256Gcm>>::try_from(nonce).map_err(|e| e.to_string())?;
     cipher
-        .decrypt(Nonce::from_slice(nonce), ciphertext)
+        .decrypt(nonce, ciphertext)
         .map_err(|_| "incorrect password".to_string())
 }
 
