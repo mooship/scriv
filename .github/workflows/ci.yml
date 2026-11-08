@@ -39,10 +39,10 @@ jobs:
         run: cargo install clippy-sarif sarif-fmt
 
       - name: Clippy
-        run:
-          cargo clippy
-          --all-features
-          --message-format=json -- -D warnings | clippy-sarif | tee rust-clippy-results.sarif | sarif-fmt
+        shell: bash
+        run: |
+          cargo clippy --locked --all-targets --message-format=json -- -D warnings \
+            | clippy-sarif | tee rust-clippy-results.sarif | sarif-fmt
 
       - name: Upload Clippy Results to GitHub
         if: always()
@@ -56,3 +56,28 @@ jobs:
 
       - name: Test
         run: cargo test --locked
+
+  coverage:
+    name: Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v7
+
+      - name: Install Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-llvm-cov
+
+      - name: Cache Dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: ci-ubuntu-coverage
+
+      - name: Coverage
+        run: cargo llvm-cov --locked
