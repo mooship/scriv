@@ -81,4 +81,4 @@ jobs:
 
       - name: Coverage
         run: |
-          cargo llvm-cov --locked --show-missing-lines --fail-under-lines 95 --fail-under-functions 95 --fail-under-regions 95
+          cargo llvm-cov --locked --show-missing-lines --fail-under-lines 95 --fail-under-functions 99 --fail-under-regions 95
