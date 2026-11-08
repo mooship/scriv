@@ -780,3 +780,15 @@ fn write_commands_report_a_data_directory_that_is_read_only() {
         );
     }
 }
+
+#[test]
+fn tag_untag_and_append_reject_bad_ids() {
+    let cli = Cli::new();
+
+    let err = failed(&cli.run(&["tag", "abc", "work"]));
+    assert!(err.contains("id must be a positive integer"));
+    let err = failed(&cli.run(&["untag", "0", "work"]));
+    assert!(err.contains("id must be a positive integer"));
+    let err = failed(&cli.run_with_stdin(&["append", "abc"], "text"));
+    assert!(err.contains("id must be a positive integer"));
+}

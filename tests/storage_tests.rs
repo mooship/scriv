@@ -1,9 +1,9 @@
 //! Integration tests for persistence and encrypted/plain file handling.
 
 mod common;
-use common::{TestEnv, lock_test};
 #[cfg(unix)]
 use common::ReadOnlyDir;
+use common::{TestEnv, lock_test};
 use scriv::{
     Note, is_encrypted_data, load_notes, notes_file_is_encrypted, notes_path, save_notes,
     set_active_password, set_notes_path_override,
