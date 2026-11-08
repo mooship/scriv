@@ -13,6 +13,15 @@ const PBKDF2_ITERS: u32 = 600_000;
 const PBKDF2_KEY_LEN: usize = 32;
 const SALT_LEN: usize = 32;
 const NONCE_LEN: usize = 12;
+const TAG_LEN: usize = 16;
+const CORRUPTED: &str = "notes file is corrupted";
+
+/// Derive the AES-256-GCM cipher for `password` and `salt` with PBKDF2.
+fn cipher_for(password: &str, salt: &[u8]) -> Result<Aes256Gcm, String> {
+    let mut key = Zeroizing::new(vec![0_u8; PBKDF2_KEY_LEN]);
+    pbkdf2_hmac::<Sha256>(password.as_bytes(), salt, PBKDF2_ITERS, &mut key);
+    Aes256Gcm::new_from_slice(&key).map_err(|e| e.to_string())
+}
 
 /// Encrypt NDJSON note bytes using AES-256-GCM and PBKDF2 key derivation.
 pub fn encrypt_notes(plaintext: &[u8], password: &str) -> Result<Vec<u8>, String> {
@@ -20,10 +29,7 @@ pub fn encrypt_notes(plaintext: &[u8], password: &str) -> Result<Vec<u8>, String
     let mut salt = [0_u8; SALT_LEN];
     rng.fill(&mut salt);
 
-    let mut key = Zeroizing::new(vec![0_u8; PBKDF2_KEY_LEN]);
-    pbkdf2_hmac::<Sha256>(password.as_bytes(), &salt, PBKDF2_ITERS, &mut key);
-
-    let cipher = Aes256Gcm::new_from_slice(&key).map_err(|e| e.to_string())?;
+    let cipher = cipher_for(password, &salt)?;
     let mut nonce = [0_u8; NONCE_LEN];
     rng.fill(&mut nonce);
 
@@ -42,25 +48,15 @@ pub fn encrypt_notes(plaintext: &[u8], password: &str) -> Result<Vec<u8>, String
 
 /// Decrypt note bytes previously produced by `encrypt_notes`.
 pub fn decrypt_notes(data: &[u8], password: &str) -> Result<Vec<u8>, String> {
-    let min_len = ENCRYPTED_MAGIC.len() + SALT_LEN + NONCE_LEN + 16;
-    if data.len() < min_len || &data[0..ENCRYPTED_MAGIC.len()] != ENCRYPTED_MAGIC {
-        return Err("notes file is corrupted".to_string());
+    let body = data.strip_prefix(ENCRYPTED_MAGIC).ok_or(CORRUPTED)?;
+    let (salt, rest) = body.split_first_chunk::<SALT_LEN>().ok_or(CORRUPTED)?;
+    let (nonce, ciphertext) = rest.split_first_chunk::<NONCE_LEN>().ok_or(CORRUPTED)?;
+    if ciphertext.len() < TAG_LEN {
+        return Err(CORRUPTED.to_string());
     }
 
-    let mut offset = ENCRYPTED_MAGIC.len();
-    let salt = &data[offset..offset + SALT_LEN];
-    offset += SALT_LEN;
-    let nonce = &data[offset..offset + NONCE_LEN];
-    offset += NONCE_LEN;
-    let ciphertext = &data[offset..];
-
-    let mut key = Zeroizing::new(vec![0_u8; PBKDF2_KEY_LEN]);
-    pbkdf2_hmac::<Sha256>(password.as_bytes(), salt, PBKDF2_ITERS, &mut key);
-
-    let cipher = Aes256Gcm::new_from_slice(&key).map_err(|e| e.to_string())?;
-    let nonce = <&Nonce<Aes256Gcm>>::try_from(nonce).map_err(|e| e.to_string())?;
-    cipher
-        .decrypt(nonce, ciphertext)
+    cipher_for(password, salt)?
+        .decrypt(&Nonce::<Aes256Gcm>::from(*nonce), ciphertext)
         .map_err(|_| "incorrect password".to_string())
 }
 

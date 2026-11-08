@@ -190,15 +190,16 @@ pub fn save_notes(notes: &[Note]) -> Result<(), String> {
         .tempfile_in(&dir)
         .map_err(|e| format!("cannot write to {}: {}", dir.display(), e))?;
 
-    if pw.is_empty() {
-        tmp.write_all(&ndjson)
-            .map_err(|e| format!("cannot write to {}: {}", path.display(), e))?;
+    let encrypted: Vec<u8>;
+    let payload: &[u8] = if pw.is_empty() {
+        &ndjson
     } else {
-        let encrypted =
+        encrypted =
             encrypt_notes(&ndjson, &pw).map_err(|e| format!("cannot encrypt notes: {}", e))?;
-        tmp.write_all(&encrypted)
-            .map_err(|e| format!("cannot write to {}: {}", path.display(), e))?;
-    }
+        &encrypted
+    };
+    tmp.write_all(payload)
+        .map_err(|e| format!("cannot write to {}: {}", path.display(), e))?;
     tmp.persist(&path)
         .map_err(|e| format!("cannot write to {}: {}", path.display(), e.error))?;
 

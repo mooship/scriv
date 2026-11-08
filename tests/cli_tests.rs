@@ -60,8 +60,8 @@ impl Cli {
         self.run_with_stdin(args, "")
     }
 
-    fn run_with_stdin(&self, args: &[&str], stdin: &str) -> Output {
-        run_command(self.command().args(args), stdin)
+    fn run_with_stdin(&self, args: &[&str], stdin: impl AsRef<[u8]>) -> Output {
+        run_command(self.command().args(args), stdin.as_ref())
     }
 
     /// Write `notes` straight into the store, bypassing the binary.
@@ -82,10 +82,10 @@ impl Cli {
     }
 }
 
-fn run_command(command: &mut Command, stdin: &str) -> Output {
+fn run_command(command: &mut Command, stdin: &[u8]) -> Output {
     let mut child = command.spawn().expect("spawn scriv");
     let mut pipe = child.stdin.take().expect("child stdin");
-    match pipe.write_all(stdin.as_bytes()) {
+    match pipe.write_all(stdin) {
         Err(e) if e.kind() != ErrorKind::BrokenPipe => panic!("write stdin: {e}"),
         _ => {}
     }
@@ -673,7 +673,7 @@ fn notes_fall_back_to_home_when_xdg_data_home_is_empty() {
 
     let out = run_command(
         cli.command().env("XDG_DATA_HOME", "").args(["add"]),
-        "fallback",
+        b"fallback",
     );
 
     assert_eq!(succeeded(&out), "Added [1] fallback\n");
@@ -684,4 +684,15 @@ fn notes_fall_back_to_home_when_xdg_data_home_is_empty() {
             .join("notes.json")
             .is_file()
     );
+}
+
+#[test]
+fn clear_reports_a_confirmation_that_is_not_utf8() {
+    let cli = Cli::new();
+    cli.add("keep me");
+
+    let err = failed(&cli.run_with_stdin(&["clear"], b"\xff\xfe\n"));
+
+    assert!(err.contains("UTF-8"), "stderr: {err}");
+    assert_eq!(listed_ids(&succeeded(&cli.run(&["list"]))), ["[1]"]);
 }

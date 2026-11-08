@@ -269,3 +269,43 @@ fn save_notes_keeps_the_permissions_of_an_existing_directory() {
         .mode();
     assert_eq!(dir_mode & 0o777, 0o755);
 }
+
+#[test]
+#[allow(deprecated)]
+fn active_password_returns_the_password_that_was_set() {
+    let _guard = lock_test();
+    let _env = TestEnv::new();
+
+    assert_eq!(scriv::active_password(), "");
+    set_active_password("hunter2".to_string());
+    assert_eq!(scriv::active_password(), "hunter2");
+}
+
+#[cfg(unix)]
+#[test]
+fn save_notes_reports_a_directory_it_cannot_write_into() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let _guard = lock_test();
+    let _env = TestEnv::new();
+
+    let data_dir = notes_path().with_file_name("read-only");
+    fs::create_dir(&data_dir).expect("create data dir");
+    fs::set_permissions(&data_dir, fs::Permissions::from_mode(0o500)).expect("set permissions");
+    let writable = fs::write(data_dir.join("probe"), "x").is_ok();
+    set_notes_path_override(Some(data_dir.join("notes.json")));
+
+    let result = save_notes(&[sample_note()]);
+
+    fs::set_permissions(&data_dir, fs::Permissions::from_mode(0o700))
+        .expect("restore permissions");
+    if writable {
+        eprintln!("skipped: permission checks do not apply to this user");
+        return;
+    }
+    let err = result.expect_err("expected write error");
+    assert!(
+        err.starts_with("cannot write to"),
+        "unexpected error: {err}"
+    );
+}

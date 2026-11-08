@@ -222,3 +222,17 @@ fn unlock_notes_stops_when_the_prompt_fails() {
     assert_eq!(err, "no scripted answer");
     assert!(notes_file_is_encrypted());
 }
+
+#[test]
+fn lock_notes_refuses_a_plain_store_it_cannot_parse() {
+    let _guard = lock_test();
+    let _env = TestEnv::new();
+    fs::write(notes_path(), "not json").expect("write corrupted file");
+
+    let mut script = Script::new(&["pw", "pw"]);
+    let err = lock_notes(|message| script.prompt(message)).expect_err("corrupted store");
+
+    assert!(err.contains("notes file is corrupted"), "unexpected: {err}");
+    assert!(script.asked.is_empty());
+    assert!(!notes_file_is_encrypted());
+}
