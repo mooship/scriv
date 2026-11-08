@@ -696,3 +696,87 @@ fn clear_reports_a_confirmation_that_is_not_utf8() {
     assert!(err.contains("UTF-8"), "stderr: {err}");
     assert_eq!(listed_ids(&succeeded(&cli.run(&["list"]))), ["[1]"]);
 }
+
+const VALID_NDJSON: &str = "{\"id\":1,\"text\":\"one\",\"created_at\":\"2024-01-01T00:00:00Z\"}\n";
+
+/// Every command that touches the store, with the stdin it needs.
+const STORE_COMMANDS: [(&[&str], &str); 13] = [
+    (&["add"], "text"),
+    (&["list"], ""),
+    (&["view", "1"], ""),
+    (&["done", "1"], ""),
+    (&["edit", "1"], "text"),
+    (&["append", "1"], "text"),
+    (&["tag", "1", "work"], ""),
+    (&["untag", "1", "work"], ""),
+    (&["tags"], ""),
+    (&["search", "text"], ""),
+    (&["export"], ""),
+    (&["import"], VALID_NDJSON),
+    (&["clear", "--force"], ""),
+];
+
+#[test]
+fn every_command_reports_a_corrupted_store() {
+    let cli = Cli::new();
+    let path = cli.notes_file();
+    fs::create_dir_all(path.parent().expect("notes dir")).expect("create data dir");
+    fs::write(&path, "not json\n").expect("write corrupted file");
+
+    for (args, stdin) in STORE_COMMANDS {
+        let err = failed(&cli.run_with_stdin(args, stdin));
+        assert!(
+            err.contains("notes file is corrupted"),
+            "`scriv {}` stderr: {err}",
+            args.join(" ")
+        );
+    }
+    let err = failed(&cli.run(&["lock"]));
+    assert!(err.contains("notes file is corrupted"), "stderr: {err}");
+    assert_eq!(fs::read(&path).expect("read store"), b"not json\n");
+}
+
+#[cfg(unix)]
+#[test]
+fn write_commands_report_a_data_directory_that_is_read_only() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let cli = Cli::new();
+    cli.seed(&[Note {
+        tags: vec!["work".to_string()],
+        ..note(1, "one", OLDEST)
+    }]);
+    let data_dir = cli.notes_file().parent().expect("notes dir").to_path_buf();
+    let original = fs::metadata(&data_dir).expect("dir metadata").permissions();
+    fs::set_permissions(&data_dir, fs::Permissions::from_mode(0o500)).expect("make read-only");
+
+    let writable = fs::write(data_dir.join(".probe"), "x").is_ok();
+    let writes: [(&[&str], &str); 8] = [
+        (&["add"], "text"),
+        (&["edit", "1"], "text"),
+        (&["append", "1"], "text"),
+        (&["tag", "1", "new"], ""),
+        (&["untag", "1", "work"], ""),
+        (&["done", "1"], ""),
+        (&["clear", "--force"], ""),
+        (&["import"], VALID_NDJSON),
+    ];
+    let results: Vec<_> = writes
+        .iter()
+        .map(|(args, stdin)| (args, cli.run_with_stdin(args, stdin)))
+        .collect();
+
+    fs::set_permissions(&data_dir, original).expect("restore permissions");
+    if writable {
+        eprintln!("skipped: permission checks do not apply to this user");
+        return;
+    }
+    for (args, out) in &results {
+        let err = failed(out);
+        assert!(
+            err.contains("cannot write to"),
+            "`scriv {}` stderr: {err}",
+            args.join(" ")
+        );
+    }
+}

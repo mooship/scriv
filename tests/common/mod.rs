@@ -34,3 +34,43 @@ impl Drop for TestEnv {
         set_active_password(String::new());
     }
 }
+
+/// Makes a directory unwritable for the current user until dropped.
+#[cfg(unix)]
+#[allow(dead_code)]
+pub struct ReadOnlyDir {
+    dir: std::path::PathBuf,
+    original: std::fs::Permissions,
+}
+
+#[cfg(unix)]
+#[allow(dead_code)]
+impl ReadOnlyDir {
+    /// Returns `None` when the user can write to the directory regardless
+    /// (for example root), so callers can skip rather than fail.
+    pub fn new(dir: &std::path::Path) -> Option<Self> {
+        use std::os::unix::fs::PermissionsExt;
+
+        let original = std::fs::metadata(dir).expect("dir metadata").permissions();
+        std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o500))
+            .expect("make dir read-only");
+        let guard = Self {
+            dir: dir.to_path_buf(),
+            original,
+        };
+
+        let probe = dir.join(".probe");
+        if std::fs::write(&probe, "x").is_ok() {
+            std::fs::remove_file(&probe).expect("remove probe");
+            return None;
+        }
+        Some(guard)
+    }
+}
+
+#[cfg(unix)]
+impl Drop for ReadOnlyDir {
+    fn drop(&mut self) {
+        std::fs::set_permissions(&self.dir, self.original.clone()).expect("restore permissions");
+    }
+}

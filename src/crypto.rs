@@ -1,7 +1,7 @@
 //! Encryption helpers for notes-at-rest support.
 
 use aes_gcm::Aes256Gcm;
-use aes_gcm::aead::{Aead, KeyInit, Nonce};
+use aes_gcm::aead::{Aead, Key, KeyInit, Nonce};
 use pbkdf2::pbkdf2_hmac;
 use rand::RngExt;
 use sha2::Sha256;
@@ -17,10 +17,10 @@ const TAG_LEN: usize = 16;
 const CORRUPTED: &str = "notes file is corrupted";
 
 /// Derive the AES-256-GCM cipher for `password` and `salt` with PBKDF2.
-fn cipher_for(password: &str, salt: &[u8]) -> Result<Aes256Gcm, String> {
-    let mut key = Zeroizing::new(vec![0_u8; PBKDF2_KEY_LEN]);
-    pbkdf2_hmac::<Sha256>(password.as_bytes(), salt, PBKDF2_ITERS, &mut key);
-    Aes256Gcm::new_from_slice(&key).map_err(|e| e.to_string())
+fn cipher_for(password: &str, salt: &[u8]) -> Aes256Gcm {
+    let mut key = Zeroizing::new([0_u8; PBKDF2_KEY_LEN]);
+    pbkdf2_hmac::<Sha256>(password.as_bytes(), salt, PBKDF2_ITERS, &mut *key);
+    Aes256Gcm::new(<&Key<Aes256Gcm>>::from(&*key))
 }
 
 /// Encrypt NDJSON note bytes using AES-256-GCM and PBKDF2 key derivation.
@@ -29,7 +29,7 @@ pub fn encrypt_notes(plaintext: &[u8], password: &str) -> Result<Vec<u8>, String
     let mut salt = [0_u8; SALT_LEN];
     rng.fill(&mut salt);
 
-    let cipher = cipher_for(password, &salt)?;
+    let cipher = cipher_for(password, &salt);
     let mut nonce = [0_u8; NONCE_LEN];
     rng.fill(&mut nonce);
 
@@ -55,7 +55,7 @@ pub fn decrypt_notes(data: &[u8], password: &str) -> Result<Vec<u8>, String> {
         return Err(CORRUPTED.to_string());
     }
 
-    cipher_for(password, salt)?
+    cipher_for(password, salt)
         .decrypt(&Nonce::<Aes256Gcm>::from(*nonce), ciphertext)
         .map_err(|_| "incorrect password".to_string())
 }
