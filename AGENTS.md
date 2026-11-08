@@ -88,10 +88,11 @@ let _env = TestEnv::new();  // redirects notes_path() to a temp file, clears the
 
 Any new test that touches storage or the active password **must** take `lock_test()` first, or it will race with other tests in the same binary and get spurious failures or cross-test data leakage. `TestEnv::new()`/`Drop` reset both statics; the `_guard` must outlive `_env` (declare it first, as above) since dropping the lock before storage is reset re-opens the race window for the next test.
 
-`cli_tests.rs` is different: every test runs the binary as its own process with `HOME`, `XDG_DATA_HOME` and `APPDATA` pointed at its own temp directory, so it needs neither `lock_test()` nor `TestEnv`. Three things to know when adding CLI tests:
+`cli_tests.rs` is different: every test runs the binary as its own process with `HOME`, `XDG_DATA_HOME` and `APPDATA` pointed at its own temp directory, so it needs neither `lock_test()` nor `TestEnv`. A few things to know when adding tests:
 
 - When stdin isn't a terminal the binary reads its text from stdin and ignores positional text arguments, so tests pass note text on stdin. The positional-argument branch of `text_from_stdin_or_args` only runs on a real terminal and isn't covered.
 - On Unix the child is started in its own session (`setsid`), so opening `/dev/tty` fails and a password prompt errors out instead of reading the developer's real terminal. Don't remove this.
+- Never write a password, salt or nonce literal in a test. CodeQL's `rust/hard-coded-cryptographic-value` fails the PR check on them, and it follows a literal through `format!`, so build test passwords with `common::password()` (random at run time) and derive any expected key with `pbkdf2_hmac_array`.
 - `cmd_search` only highlights matches when stdout is a terminal, so piped tests see plain text. The `Ok` arm of the up-front password prompt in `main` is likewise terminal-only.
 
 ## Architecture
@@ -149,7 +150,7 @@ IDs are not sequential from a counter: a new note gets `max(existing IDs) + 1` (
 
 ### Dependency-version gotchas
 
-- `rand = "0.10"`: `src/crypto.rs` uses `rand::rng()` (not the older `thread_rng()`) and imports `rand::RngExt` to get `.fill()`. A bare `use rand::Rng` is not enough on this version.
+- `rand = "0.10"`: `src/crypto.rs` uses `rand::rng()` (not the older `thread_rng()`) and imports `rand::RngExt` to get `.random()` for the salt and nonce. A bare `use rand::Rng` is not enough on this version.
 - `aes-gcm = "0.11"` (locked at 0.11.1) with `hybrid-array 0.4.12`: `Nonce::from_slice` is deprecated. `src/crypto.rs` builds the encryption nonce with `Nonce::<Aes256Gcm>::from([u8; NONCE_LEN])`, which stops compiling if the length ever stops matching the cipher, and reads the stored nonce out of the file with `split_first_chunk::<NONCE_LEN>()`, so no conversion there can fail. Keep it that way rather than reintroducing `from_slice` behind `#[allow(deprecated)]`.
 
 ## Backwards compatibility
