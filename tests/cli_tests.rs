@@ -161,9 +161,7 @@ fn no_arguments_prints_usage_and_fails() {
     let out = cli.run(&[]);
 
     assert_eq!(out.status.code(), Some(1));
-    assert!(
-        String::from_utf8_lossy(&out.stdout).contains("Usage: scriv <command> [arguments]")
-    );
+    assert!(String::from_utf8_lossy(&out.stdout).contains("Usage: scriv <command> [arguments]"));
 }
 
 #[test]
@@ -217,10 +215,7 @@ fn add_without_text_fails_with_usage() {
 fn add_strips_terminal_escapes_from_its_output() {
     let cli = Cli::new();
 
-    assert_eq!(
-        cli.add("red\u{1b}[31m alert"),
-        "Added [1] red[31m alert\n"
-    );
+    assert_eq!(cli.add("red\u{1b}[31m alert"), "Added [1] red[31m alert\n");
 }
 
 #[test]
@@ -504,10 +499,7 @@ fn tags_lists_counts_alphabetically() {
 
     assert_eq!(
         succeeded(&cli.run(&["tags"])),
-        format!(
-            "{:<20} {}\n{:<20} {}\n",
-            "critical", 1, "work", 2
-        )
+        format!("{:<20} {}\n{:<20} {}\n", "critical", 1, "work", 2)
     );
 }
 
@@ -631,7 +623,10 @@ mod password_prompts {
 
         let err = failed(&cli.run(&["list"]));
 
-        assert!(err.contains("Error: cannot read password:"), "stderr: {err}");
+        assert!(
+            err.contains("Error: cannot read password:"),
+            "stderr: {err}"
+        );
         assert_eq!(fs::read(cli.notes_file()).expect("read store"), before);
     }
 
@@ -676,7 +671,10 @@ fn notes_fall_back_to_home_when_xdg_data_home_is_empty() {
     let cli = Cli::new();
     let root = cli.root.path();
 
-    let out = run_command(cli.command().env("XDG_DATA_HOME", "").args(["add"]), "fallback");
+    let out = run_command(
+        cli.command().env("XDG_DATA_HOME", "").args(["add"]),
+        "fallback",
+    );
 
     assert_eq!(succeeded(&out), "Added [1] fallback\n");
     assert!(

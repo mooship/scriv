@@ -151,7 +151,10 @@ fn load_notes_reports_a_path_that_cannot_be_read() {
     fs::create_dir(notes_path()).expect("create directory at notes path");
 
     let err = load_notes().expect_err("expected read error");
-    assert!(err.starts_with("cannot read from"), "unexpected error: {err}");
+    assert!(
+        err.starts_with("cannot read from"),
+        "unexpected error: {err}"
+    );
 }
 
 #[test]
@@ -162,7 +165,10 @@ fn load_notes_reports_content_that_is_not_utf8() {
     fs::write(notes_path(), [0xff_u8, 0xfe, b'\n']).expect("write notes file");
 
     let err = load_notes().expect_err("expected read error");
-    assert!(err.starts_with("cannot read from"), "unexpected error: {err}");
+    assert!(
+        err.starts_with("cannot read from"),
+        "unexpected error: {err}"
+    );
 }
 
 #[test]
@@ -197,7 +203,10 @@ fn save_notes_reports_a_data_directory_that_cannot_be_created() {
     set_notes_path_override(Some(blocker.join("notes.json")));
 
     let err = save_notes(&[sample_note()]).expect_err("expected directory error");
-    assert!(err.starts_with("cannot write to"), "unexpected error: {err}");
+    assert!(
+        err.starts_with("cannot write to"),
+        "unexpected error: {err}"
+    );
 }
 
 #[test]
@@ -208,7 +217,10 @@ fn save_notes_reports_a_notes_path_that_is_a_directory() {
     fs::create_dir(notes_path()).expect("create directory at notes path");
 
     let err = save_notes(&[sample_note()]).expect_err("expected replace error");
-    assert!(err.starts_with("cannot write to"), "unexpected error: {err}");
+    assert!(
+        err.starts_with("cannot write to"),
+        "unexpected error: {err}"
+    );
 }
 
 #[cfg(unix)]
@@ -224,7 +236,10 @@ fn save_notes_creates_a_private_directory_and_file() {
 
     save_notes(&[sample_note()]).expect("save notes");
 
-    let dir_mode = fs::metadata(&data_dir).expect("dir metadata").permissions().mode();
+    let dir_mode = fs::metadata(&data_dir)
+        .expect("dir metadata")
+        .permissions()
+        .mode();
     let file_mode = fs::metadata(data_dir.join("notes.json"))
         .expect("file metadata")
         .permissions()
@@ -248,6 +263,9 @@ fn save_notes_keeps_the_permissions_of_an_existing_directory() {
 
     save_notes(&[sample_note()]).expect("save notes");
 
-    let dir_mode = fs::metadata(&data_dir).expect("dir metadata").permissions().mode();
+    let dir_mode = fs::metadata(&data_dir)
+        .expect("dir metadata")
+        .permissions()
+        .mode();
     assert_eq!(dir_mode & 0o777, 0o755);
 }
