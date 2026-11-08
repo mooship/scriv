@@ -793,3 +793,69 @@ fn parse_import_ndjson_rejects_input_over_the_size_limit() {
     let err = parse_import_ndjson(oversized).expect_err("expected limit error");
     assert_eq!(err, "import input exceeds 50 MB limit");
 }
+
+fn valid_note() -> Note {
+    Note {
+        id: 1,
+        text: "valid".to_string(),
+        created_at: "2024-01-01T00:00:00Z".to_string(),
+        updated_at: String::new(),
+        tags: Vec::new(),
+    }
+}
+
+#[test]
+fn operations_report_a_corrupted_store() {
+    let _guard = lock_test();
+    let _env = TestEnv::new();
+    fs::write(notes_path(), "not json").expect("write corrupted file");
+
+    let tag = vec!["work".to_string()];
+    let errors = [
+        add_note("text").expect_err("add"),
+        remove_note(1).expect_err("remove one"),
+        remove_notes(&[1], false).expect_err("remove many"),
+        search_notes("text").expect_err("search"),
+        edit_note(1, "text").expect_err("edit"),
+        append_note(1, "text").expect_err("append"),
+        get_note(1).expect_err("get"),
+        import_notes(vec![valid_note()]).expect_err("import"),
+        tag_note(1, &tag).expect_err("tag"),
+        untag_note(1, "work").expect_err("untag"),
+        list_notes(&ListOptions::default()).expect_err("list"),
+    ];
+
+    for err in errors {
+        assert!(err.contains("notes file is corrupted"), "unexpected: {err}");
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn write_operations_report_a_data_directory_that_is_read_only() {
+    let _guard = lock_test();
+    let _env = TestEnv::new();
+    add_note("one").expect("add note");
+    tag_note(1, &["work".to_string()]).expect("tag note");
+    let data_dir = notes_path().parent().expect("data dir").to_path_buf();
+    let Some(_read_only) = common::ReadOnlyDir::new(&data_dir) else {
+        eprintln!("skipped: permission checks do not apply to this user");
+        return;
+    };
+
+    let errors = [
+        add_note("two").expect_err("add"),
+        remove_note(1).expect_err("remove one"),
+        remove_notes(&[1], true).expect_err("remove many"),
+        edit_note(1, "changed").expect_err("edit"),
+        append_note(1, "more").expect_err("append"),
+        tag_note(1, &["new".to_string()]).expect_err("tag"),
+        untag_note(1, "work").expect_err("untag"),
+        import_notes(vec![valid_note()]).expect_err("import"),
+        clear_notes().expect_err("clear"),
+    ];
+
+    for err in errors {
+        assert!(err.starts_with("cannot write to"), "unexpected: {err}");
+    }
+}

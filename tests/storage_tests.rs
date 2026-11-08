@@ -2,6 +2,8 @@
 
 mod common;
 use common::{TestEnv, lock_test};
+#[cfg(unix)]
+use common::ReadOnlyDir;
 use scriv::{
     Note, is_encrypted_data, load_notes, notes_file_is_encrypted, notes_path, save_notes,
     set_active_password, set_notes_path_override,
@@ -284,26 +286,18 @@ fn active_password_returns_the_password_that_was_set() {
 #[cfg(unix)]
 #[test]
 fn save_notes_reports_a_directory_it_cannot_write_into() {
-    use std::os::unix::fs::PermissionsExt;
-
     let _guard = lock_test();
     let _env = TestEnv::new();
 
     let data_dir = notes_path().with_file_name("read-only");
     fs::create_dir(&data_dir).expect("create data dir");
-    fs::set_permissions(&data_dir, fs::Permissions::from_mode(0o500)).expect("set permissions");
-    let writable = fs::write(data_dir.join("probe"), "x").is_ok();
     set_notes_path_override(Some(data_dir.join("notes.json")));
-
-    let result = save_notes(&[sample_note()]);
-
-    fs::set_permissions(&data_dir, fs::Permissions::from_mode(0o700))
-        .expect("restore permissions");
-    if writable {
+    let Some(_read_only) = ReadOnlyDir::new(&data_dir) else {
         eprintln!("skipped: permission checks do not apply to this user");
         return;
-    }
-    let err = result.expect_err("expected write error");
+    };
+
+    let err = save_notes(&[sample_note()]).expect_err("expected write error");
     assert!(
         err.starts_with("cannot write to"),
         "unexpected error: {err}"
