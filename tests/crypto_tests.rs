@@ -108,5 +108,8 @@ fn encrypting_twice_uses_a_fresh_salt_and_nonce() {
 
     let header = ENCRYPTED_MAGIC.len();
     assert_ne!(first[header..header + 32], second[header..header + 32]);
-    assert_ne!(first[header + 32..header + 44], second[header + 32..header + 44]);
+    assert_ne!(
+        first[header + 32..header + 44],
+        second[header + 32..header + 44]
+    );
 }

@@ -4,9 +4,9 @@ use chrono::{DateTime, Utc};
 use scriv::{
     ListOptions, Note, add_note, append_note, clear_notes, collect_tags, edit_note, get_note,
     has_active_password, highlight_match, import_notes, list_notes, load_notes, lock_notes,
-    note_age, notes_file_is_encrypted, parse_id, parse_import_ndjson, read_stdin_text, remove_notes,
-    sanitize_display, search_notes, set_active_password, set_active_password_zeroized, tag_note,
-    unlock_notes, untag_note,
+    note_age, notes_file_is_encrypted, parse_id, parse_import_ndjson, read_stdin_text,
+    remove_notes, sanitize_display, search_notes, set_active_password,
+    set_active_password_zeroized, tag_note, unlock_notes, untag_note,
 };
 use std::collections::BTreeMap;
 use std::env;
