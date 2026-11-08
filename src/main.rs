@@ -3,10 +3,10 @@
 use chrono::{DateTime, Utc};
 use scriv::{
     ListOptions, Note, add_note, append_note, clear_notes, collect_tags, edit_note, get_note,
-    has_active_password, highlight_match, import_notes, list_notes, load_notes, note_age,
-    notes_file_is_encrypted, parse_id, parse_import_ndjson, read_stdin_text, remove_notes,
+    has_active_password, highlight_match, import_notes, list_notes, load_notes, lock_notes,
+    note_age, notes_file_is_encrypted, parse_id, parse_import_ndjson, read_stdin_text, remove_notes,
     sanitize_display, search_notes, set_active_password, set_active_password_zeroized, tag_note,
-    untag_note,
+    unlock_notes, untag_note,
 };
 use std::collections::BTreeMap;
 use std::env;
@@ -117,12 +117,6 @@ fn prompt_password(msg: &str) -> Result<Zeroizing<String>, String> {
     rpassword::read_password()
         .map(Zeroizing::new)
         .map_err(|e| e.to_string())
-}
-
-/// Load notes, clearing the active password if the load fails so a wrong
-/// password is not retained in memory.
-fn load_notes_clearing_password_on_err() -> Result<Vec<Note>, String> {
-    load_notes().inspect_err(|_| set_active_password(String::new()))
 }
 
 /// Add a new note and print its assigned id.
@@ -347,46 +341,20 @@ fn cmd_import<R: Read>(reader: R) -> Result<(), String> {
     Ok(())
 }
 
-/// Set or change the notes password, decrypting with the current password
-/// first if the store is already encrypted, then re-saving under the new one.
+/// Set or change the notes password, prompting on the terminal.
 fn cmd_lock() -> Result<(), String> {
-    let notes = if notes_file_is_encrypted() {
-        let current = prompt_password("Current password: ")?;
-        set_active_password_zeroized(current);
-        load_notes_clearing_password_on_err()?
-    } else {
-        load_notes()?
-    };
-
-    let pw = prompt_password("New password: ")?;
-    if pw.is_empty() {
-        return Err("password cannot be empty".to_string());
-    }
-    let confirm = prompt_password("Confirm password: ")?;
-    if *pw != *confirm {
-        return Err("passwords do not match".to_string());
-    }
-
-    set_active_password_zeroized(pw);
-    scriv::save_notes(&notes)?;
+    lock_notes(prompt_password)?;
     println!("Notes are now password protected.");
     Ok(())
 }
 
-/// Remove password protection by decrypting with the current password and
-/// re-saving the store in plaintext.
+/// Remove password protection, prompting on the terminal for the current password.
 fn cmd_unlock() -> Result<(), String> {
-    if !notes_file_is_encrypted() {
+    if unlock_notes(prompt_password)? {
+        println!("Password protection removed.");
+    } else {
         println!("Notes are not password protected.");
-        return Ok(());
     }
-
-    let pw = prompt_password("Password: ")?;
-    set_active_password_zeroized(pw);
-    let notes = load_notes_clearing_password_on_err()?;
-    set_active_password(String::new());
-    scriv::save_notes(&notes)?;
-    println!("Password protection removed.");
     Ok(())
 }
 

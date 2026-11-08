@@ -156,3 +156,10 @@ fn sanitize_display_keeps_plain_text_unchanged() {
     let result = scriv::sanitize_display("hello wörld #tag");
     assert_eq!(result, "hello wörld #tag");
 }
+
+#[test]
+fn read_stdin_text_reports_input_that_is_not_utf8() {
+    let input = Cursor::new(vec![0xff_u8, 0xfe, b'\n']);
+    let err = read_stdin_text(input).expect_err("expected decode error");
+    assert!(err.contains("UTF-8"), "unexpected error: {err}");
+}

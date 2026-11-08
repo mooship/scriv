@@ -4,7 +4,7 @@ mod common;
 use common::{TestEnv, lock_test};
 use scriv::*;
 use std::fs;
-use std::io::Cursor;
+use std::io::{Cursor, Read};
 
 #[test]
 fn add_note_assigns_id_1_when_empty() {
@@ -778,4 +778,18 @@ fn import_notes_errors_when_id_space_exhausted() {
     let existing = seed_max_id_note();
     let err = import_notes(vec![existing]).expect_err("expected error");
     assert_eq!(err, "note id limit reached");
+}
+
+#[test]
+fn parse_import_ndjson_reports_input_that_is_not_utf8() {
+    let input = Cursor::new(vec![0xff_u8, 0xfe, b'\n']);
+    let err = parse_import_ndjson(input).expect_err("expected decode error");
+    assert!(err.contains("UTF-8"), "unexpected error: {err}");
+}
+
+#[test]
+fn parse_import_ndjson_rejects_input_over_the_size_limit() {
+    let oversized = std::io::repeat(b'x').take(MAX_IMPORT_BYTES + 100);
+    let err = parse_import_ndjson(oversized).expect_err("expected limit error");
+    assert_eq!(err, "import input exceeds 50 MB limit");
 }
