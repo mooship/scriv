@@ -1,4 +1,7 @@
 //! Shared test infrastructure for integration tests.
+//!
+//! Each test binary compiles this module but uses only part of it.
+#![allow(dead_code)]
 
 use once_cell::sync::Lazy;
 use scriv::{set_active_password, set_notes_path_override};
@@ -37,14 +40,12 @@ impl Drop for TestEnv {
 
 /// Makes a directory unwritable for the current user until dropped.
 #[cfg(unix)]
-#[allow(dead_code)]
 pub struct ReadOnlyDir {
     dir: std::path::PathBuf,
     original: std::fs::Permissions,
 }
 
 #[cfg(unix)]
-#[allow(dead_code)]
 impl ReadOnlyDir {
     /// Returns `None` when the user can write to the directory regardless
     /// (for example root), so callers can skip rather than fail.
@@ -73,4 +74,10 @@ impl Drop for ReadOnlyDir {
     fn drop(&mut self) {
         std::fs::set_permissions(&self.dir, self.original.clone()).expect("restore permissions");
     }
+}
+
+/// A password that is unique to this process, built at run time so that no
+/// secret literal ends up in the tests.
+pub fn password(label: &str) -> String {
+    format!("{label}-{}", std::process::id())
 }

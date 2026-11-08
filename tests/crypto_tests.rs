@@ -1,7 +1,9 @@
 //! Integration tests for encryption format and error handling.
 
+mod common;
 use aes_gcm::Aes256Gcm;
 use aes_gcm::aead::{Aead, KeyInit, Nonce};
+use common::password;
 use pbkdf2::pbkdf2_hmac;
 use scriv::{ENCRYPTED_MAGIC, decrypt_notes, encrypt_notes, is_encrypted_data};
 use sha2::Sha256;
@@ -57,15 +59,16 @@ fn derive_key(password: &str, salt: &[u8]) -> [u8; 32] {
 
 #[test]
 fn encrypt_notes_output_follows_the_documented_layout() {
+    let pw = password("layout");
     let plaintext = b"layout check\n";
-    let encrypted = encrypt_notes(plaintext, "layout-pw").expect("encrypt");
+    let encrypted = encrypt_notes(plaintext, &pw).expect("encrypt");
 
     let (magic, rest) = encrypted.split_at(ENCRYPTED_MAGIC.len());
     let (salt, rest) = rest.split_at(32);
     let (nonce, ciphertext) = rest.split_at(12);
     assert_eq!(magic, ENCRYPTED_MAGIC);
 
-    let cipher = Aes256Gcm::new_from_slice(&derive_key("layout-pw", salt)).expect("key");
+    let cipher = Aes256Gcm::new_from_slice(&derive_key(&pw, salt)).expect("key");
     let nonce = <&Nonce<Aes256Gcm>>::try_from(nonce).expect("nonce length");
     let decrypted = cipher
         .decrypt(nonce, ciphertext)
@@ -75,10 +78,11 @@ fn encrypt_notes_output_follows_the_documented_layout() {
 
 #[test]
 fn decrypt_notes_reads_a_file_built_independently() {
+    let pw = password("hand");
     let plaintext = b"built by hand\n";
-    let salt = [7_u8; 32];
-    let nonce = [9_u8; 12];
-    let cipher = Aes256Gcm::new_from_slice(&derive_key("hand-pw", &salt)).expect("key");
+    let salt: [u8; 32] = rand::random();
+    let nonce: [u8; 12] = rand::random();
+    let cipher = Aes256Gcm::new_from_slice(&derive_key(&pw, &salt)).expect("key");
     let ciphertext = cipher
         .encrypt(&Nonce::<Aes256Gcm>::from(nonce), plaintext.as_slice())
         .expect("encrypt");
@@ -88,23 +92,25 @@ fn decrypt_notes_reads_a_file_built_independently() {
     file.extend_from_slice(&nonce);
     file.extend_from_slice(&ciphertext);
 
-    assert_eq!(decrypt_notes(&file, "hand-pw").expect("decrypt"), plaintext);
+    assert_eq!(decrypt_notes(&file, &pw).expect("decrypt"), plaintext);
 }
 
 #[test]
 fn decrypt_rejects_tampered_ciphertext() {
-    let mut encrypted = encrypt_notes(b"tamper check\n", "pw").expect("encrypt");
+    let pw = password("tamper");
+    let mut encrypted = encrypt_notes(b"tamper check\n", &pw).expect("encrypt");
     let last = encrypted.len() - 1;
     encrypted[last] ^= 0x01;
 
-    let err = decrypt_notes(&encrypted, "pw").expect_err("expected authentication failure");
+    let err = decrypt_notes(&encrypted, &pw).expect_err("expected authentication failure");
     assert_eq!(err, "incorrect password");
 }
 
 #[test]
 fn encrypting_twice_uses_a_fresh_salt_and_nonce() {
-    let first = encrypt_notes(b"same input\n", "pw").expect("encrypt");
-    let second = encrypt_notes(b"same input\n", "pw").expect("encrypt");
+    let pw = password("fresh");
+    let first = encrypt_notes(b"same input\n", &pw).expect("encrypt");
+    let second = encrypt_notes(b"same input\n", &pw).expect("encrypt");
 
     let header = ENCRYPTED_MAGIC.len();
     assert_ne!(first[header..header + 32], second[header..header + 32]);

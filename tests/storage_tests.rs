@@ -3,7 +3,7 @@
 mod common;
 #[cfg(unix)]
 use common::ReadOnlyDir;
-use common::{TestEnv, lock_test};
+use common::{TestEnv, lock_test, password};
 use scriv::{
     Note, is_encrypted_data, load_notes, notes_file_is_encrypted, notes_path, save_notes,
     set_active_password, set_notes_path_override,
@@ -279,8 +279,9 @@ fn active_password_returns_the_password_that_was_set() {
     let _env = TestEnv::new();
 
     assert_eq!(scriv::active_password(), "");
-    set_active_password("hunter2".to_string());
-    assert_eq!(scriv::active_password(), "hunter2");
+    let pw = password("active");
+    set_active_password(pw.clone());
+    assert_eq!(scriv::active_password(), pw);
 }
 
 #[cfg(unix)]
