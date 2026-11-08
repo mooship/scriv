@@ -24,3 +24,9 @@ serde_json = "1.0"
 sha2 = "0.11"
 tempfile = "3.13"
 zeroize = "1"
+
+# 600,000 PBKDF2 rounds take seconds per call in an unoptimised build, which
+# dominates the test run. Optimising dependencies only keeps scriv's own code
+# debuggable.
+[profile.dev.package."*"]
+opt-level = 3
