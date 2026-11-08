@@ -236,3 +236,23 @@ fn lock_notes_refuses_a_plain_store_it_cannot_parse() {
     assert!(script.asked.is_empty());
     assert!(!notes_file_is_encrypted());
 }
+
+#[cfg(unix)]
+#[test]
+fn unlock_notes_reports_a_data_directory_it_cannot_write_into() {
+    let _guard = lock_test();
+    let _env = TestEnv::new();
+    add_note("shared secret").expect("add note");
+    lock_with("pw");
+    let data_dir = notes_path().parent().expect("data dir").to_path_buf();
+    let Some(_read_only) = common::ReadOnlyDir::new(&data_dir) else {
+        eprintln!("skipped: permission checks do not apply to this user");
+        return;
+    };
+
+    let mut script = Script::new(&["pw"]);
+    let err = unlock_notes(|message| script.prompt(message)).expect_err("read-only directory");
+
+    assert!(err.starts_with("cannot write to"), "unexpected: {err}");
+    assert!(notes_file_is_encrypted());
+}
