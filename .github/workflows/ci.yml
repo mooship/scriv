@@ -80,4 +80,4 @@ jobs:
           shared-key: ci-ubuntu-coverage
 
       - name: Coverage
-        run: cargo llvm-cov --locked
+        run: cargo llvm-cov --locked --show-missing-lines
