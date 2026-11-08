@@ -80,4 +80,7 @@ jobs:
           shared-key: ci-ubuntu-coverage
 
       - name: Coverage
-        run: cargo llvm-cov --locked --show-missing-lines
+        run: |
+          cargo llvm-cov --locked --no-report
+          cargo llvm-cov report --show-missing-lines
+          cargo llvm-cov report --text | grep -B3 -F '^0' || true
