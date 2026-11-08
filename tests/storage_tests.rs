@@ -279,7 +279,7 @@ fn active_password_returns_the_password_that_was_set() {
     let _env = TestEnv::new();
 
     assert_eq!(scriv::active_password(), "");
-    let pw = password("active");
+    let pw = password();
     set_active_password(pw.clone());
     assert_eq!(scriv::active_password(), pw);
 }

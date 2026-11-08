@@ -46,7 +46,7 @@ fn lock_notes_encrypts_a_plain_store() {
     let _guard = lock_test();
     let _env = TestEnv::new();
     add_note("keep me private").expect("add note");
-    let pw = password("encrypt");
+    let pw = password();
 
     let mut script = Script::new(&[&pw, &pw]);
     lock_notes(|message| script.prompt(message)).expect("lock notes");
@@ -80,7 +80,7 @@ fn lock_notes_rejects_a_mismatched_confirmation() {
     let _guard = lock_test();
     let _env = TestEnv::new();
     add_note("plain").expect("add note");
-    let (first, second) = (password("first"), password("second"));
+    let (first, second) = (password(), password());
 
     let mut script = Script::new(&[&first, &second]);
     let err = lock_notes(|message| script.prompt(message)).expect_err("mismatch");
@@ -96,7 +96,7 @@ fn lock_notes_changes_the_password_of_an_encrypted_store() {
     let _guard = lock_test();
     let _env = TestEnv::new();
     add_note("shared secret").expect("add note");
-    let (old, new) = (password("old"), password("new"));
+    let (old, new) = (password(), password());
     lock_with(&old);
 
     let mut script = Script::new(&[&old, &new, &new]);
@@ -120,7 +120,7 @@ fn lock_notes_with_the_wrong_current_password_changes_nothing() {
     let _guard = lock_test();
     let _env = TestEnv::new();
     add_note("shared secret").expect("add note");
-    let (right, wrong) = (password("right"), password("wrong"));
+    let (right, wrong) = (password(), password());
     lock_with(&right);
 
     let mut script = Script::new(&[&wrong]);
@@ -139,7 +139,7 @@ fn lock_notes_stops_when_a_prompt_fails() {
     let _guard = lock_test();
     let _env = TestEnv::new();
     add_note("plain").expect("add note");
-    let pw = password("partial");
+    let pw = password();
 
     let mut no_answers = Script::new(&[]);
     let err = lock_notes(|message| no_answers.prompt(message)).expect_err("new password prompt");
@@ -159,7 +159,7 @@ fn lock_notes_stops_when_the_current_password_prompt_fails() {
     let _guard = lock_test();
     let _env = TestEnv::new();
     add_note("shared secret").expect("add note");
-    lock_with(&password("current"));
+    lock_with(&password());
 
     let mut script = Script::new(&[]);
     let err = lock_notes(|message| script.prompt(message)).expect_err("current password prompt");
@@ -173,7 +173,7 @@ fn lock_notes_refuses_a_plain_store_it_cannot_parse() {
     let _guard = lock_test();
     let _env = TestEnv::new();
     fs::write(notes_path(), "not json").expect("write corrupted file");
-    let pw = password("corrupted");
+    let pw = password();
 
     let mut script = Script::new(&[&pw, &pw]);
     let err = lock_notes(|message| script.prompt(message)).expect_err("corrupted store");
@@ -202,7 +202,7 @@ fn unlock_notes_removes_password_protection() {
     let _guard = lock_test();
     let _env = TestEnv::new();
     add_note("shared secret").expect("add note");
-    let pw = password("unlock");
+    let pw = password();
     lock_with(&pw);
 
     let mut script = Script::new(&[&pw]);
@@ -220,7 +220,7 @@ fn unlock_notes_with_the_wrong_password_keeps_the_store_encrypted() {
     let _guard = lock_test();
     let _env = TestEnv::new();
     add_note("shared secret").expect("add note");
-    let (right, wrong) = (password("right"), password("wrong"));
+    let (right, wrong) = (password(), password());
     lock_with(&right);
 
     let mut script = Script::new(&[&wrong]);
@@ -236,7 +236,7 @@ fn unlock_notes_stops_when_the_prompt_fails() {
     let _guard = lock_test();
     let _env = TestEnv::new();
     add_note("shared secret").expect("add note");
-    lock_with(&password("prompt"));
+    lock_with(&password());
 
     let mut script = Script::new(&[]);
     let err = unlock_notes(|message| script.prompt(message)).expect_err("password prompt");
@@ -251,7 +251,7 @@ fn unlock_notes_reports_a_data_directory_it_cannot_write_into() {
     let _guard = lock_test();
     let _env = TestEnv::new();
     add_note("shared secret").expect("add note");
-    let pw = password("read-only");
+    let pw = password();
     lock_with(&pw);
     let data_dir = notes_path().parent().expect("data dir").to_path_buf();
     let Some(_read_only) = common::ReadOnlyDir::new(&data_dir) else {
